@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "ledger": {
+    "id": "ledger_example",
+    "name": "示例家庭账本",
+    "baseCurrency": "CNY",
+    "createdAt": "2025-07-18T12:00:00.000Z",
+    "events": [
+      {
+        "id": "event_ledger_created",
+        "type": "ledger.created",
+        "occurredAt": "2025-07-18T12:00:00.000Z",
+        "payload": { "name": "示例家庭账本", "baseCurrency": "CNY" }
+      },
+      {
+        "id": "event_asset_created",
+        "type": "asset.created",
+        "occurredAt": "2025-07-18T12:00:00.000Z",
+        "payload": {
+          "assetKey": "account_ibkr::project_voo",
+          "projectId": "project_voo",
+          "accountId": "account_ibkr",
+          "kind": "investment",
+          "group": "美股",
+          "project": "VOO",
+          "account": "盈透证券",
+          "currency": "USD",
+          "startDate": "2025-07-18",
+          "quantity": 12,
+          "costPrice": 480,
+          "currentPrice": 545,
+          "fxRate": 7.18,
+          "ticker": "VOO",
+          "market": "US"
+        }
+      },
+      {
+        "id": "event_voo_price",
+        "type": "asset.valuation.recorded",
+        "occurredAt": "2026-07-18T12:00:00.000Z",
+        "payload": { "assetKey": "account_ibkr::project_voo", "date": "2026-07-18", "value": 545, "fxRate": 7.18 }
+      }
+    ]
+  }
+}
