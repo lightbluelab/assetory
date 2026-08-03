@@ -1895,13 +1895,14 @@ function normalizedUsSymbol(symbol){
     .replace(/^(?:US|NASDAQ|NYSE|AMEX)[:.]/,"")
     .replace(/\.(?:US|O|N|AM)$/," ").trim();
 }
-// 腾讯代码: A股 sh600519 / 港股 hk00700 / 美股 usAAPL
+// 腾讯代码: A股 sh600519 / sh510500 / 港股 hk00700 / 美股 usAAPL
 function tencentCode(market, symbol){
   const s=(symbol||"").trim(); const m=normalizedMarket(market);
   if(m==="hk") return "hk"+s.replace(/\D/g,"").padStart(5,"0");
   if(m==="us") return "us"+normalizedUsSymbol(s);
   if(/^(sh|sz)/i.test(s)) return s.toLowerCase();
-  return (s.startsWith("6")?"sh":"sz")+s;
+  // 沪市除 6 开头股票外，也包括 5 开头 ETF/基金和 9 开头 B 股。
+  return (/^[569]/.test(s)?"sh":"sz")+s;
 }
 function parseTencentQuote(raw,fallbackDate=ymd(new Date())){
   if(Array.isArray(raw)) raw=raw.join("~");

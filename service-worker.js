@@ -1,4 +1,4 @@
-const CACHE_NAME = "wealth-tracker-pwa-v23";
+const CACHE_NAME = "wealth-tracker-pwa-v24";
 const APP_SHELL = [
   "./",
   "./index.html",
