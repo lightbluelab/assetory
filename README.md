@@ -4,6 +4,8 @@
 
 Wealth Tracker 是用于持续追踪个人或家庭资产价值的小工具。它把散落在不同银行、券商等平台的资产放进同一份月度视图中，帮你看清资产是如何分布和变化的。
 
+可直接通过 [https://lightbluelab.github.io/wealth-tracker/](https://lightbluelab.github.io/wealth-tracker/) 在线访问和使用。本工具采用本地优先方式，账本数据只保留在你的浏览器或由你自行导入、导出的 JSON 文件中，不会上传到 GitHub Pages 或本项目仓库。
+
 主要能力包括：
 - 按月维护资产负债表和流水对账单，自动汇总资产规模、盈亏和现金流趋势。
 - 支持多个账户、资产分组、多币种及汇率换算，适合同时管理境内外资产。
