@@ -11,13 +11,13 @@
   "theme_color": "#faf7f0",
   "icons": [
     {
-      "src": "./wealth_tracker-192.png?v=20260802-v23",
+      "src": "./wealth_tracker-192.png?v=20260803-v25",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "./wealth_tracker-512.png?v=20260802-v23",
+      "src": "./wealth_tracker-512.png?v=20260803-v25",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

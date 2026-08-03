@@ -6,8 +6,7 @@ Wealth Tracker 是本地优先的月度资产价值追踪工具。它以单个 J
 
 ## 文件与发布
 
-- `wealth_tracker.html`：本地开发主文件。
-- `index.html`：服务器静态入口，必须与主文件保持相同内容。
+- `index.html`：唯一的本地开发文件和服务器静态入口。单独下载后可按需要重命名为 `wealth_tracker.html`。
 - `demo-ledger.json`：公开演示账本，六个月数据，可用于基础回归。
 - `wealth_tracker.svg`：页面和浏览器 Tab 图标；`wealth_tracker-180.png`、`wealth_tracker-192.png`、`wealth_tracker-512.png` 是移动端/PWA 高清图标。
 - `manifest.webmanifest` / `service-worker.js`：PWA 安装与离线程序缓存。
@@ -23,6 +22,7 @@ ledger.months[YYYY-MM]
   flows[]         流水；通过 fromAssetId / toAssetId 引用资产 id
   fxRates         本月原币 -> CNY 汇率
   opening[]       期初快照，用于对账
+  openingPrices{} 首月自动报价股票的上月底价格基线，用于首月盈亏归因
   copiedFrom      上一个来源月份（如有）
   revision        本月内容版本号
   sourceRevision  子月已接收的来源版本号
@@ -36,11 +36,11 @@ ledger.months[YYYY-MM]
 
 1. 所有账本内容修改应走 `transact()`：先克隆快照，成功后一次 `persist()`，写入失败则回滚内存数据。
 2. `migrateLedger()` 负责 JSON 结构检查、旧字段迁移、文本清理与稳定 ID 检查。任何用户文本渲染到 `innerHTML` 前都用 `escapeHTML` / `escapeAttr`。
-3. 流水新增或编辑必须先通过 `buildFlowDraft()` 校验，再写入并调用 `applyFlow()`；删除流水必须以 `applyFlow(flow, -1)` 回滚。收入可流入任意非负债资产；流入股票时以数量和价格联动持仓，其余资产按金额联动。只有流入现金资产的收入计入净现金流，股票或实物激励等非现金收入只增加资产与净资产。
+3. 流水新增或编辑必须先通过 `buildFlowDraft()` 校验，再写入并调用 `applyFlow()`；删除流水必须以 `applyFlow(flow, -1)` 回滚。新流水的金额和数量必须为正数。股票卖出允许从零持仓或多头持仓穿过零仓建立空头，基金和固定资产不可超卖；还款不得超过当前负债余额；跨币种还款必须先通过现金转账换汇。收入可流入任意非负债资产；流入股票时以数量和价格联动持仓，其余资产按金额联动。只有流入现金资产的收入计入净现金流，股票或实物激励等非现金收入只增加资产与净资产。
 4. 删除资产必须先下载备份，回滚并删除当前及后续月份的关联流水和资产，再沿继承链重建后续月份。
 5. 跨月待同步只比较 `parent.revision > child.sourceRevision`，不得再以时间戳作为判断依据。同步依赖 `rebuildChildFromParent()`；插入中间月份时必须重连原直接子月，保持单一时间链。同步提示通过 `changeLog` 展示尚未接收的修改。
 6. 资产类占比以总资产为分母；负债类占比以总负债绝对值为分母。净资产不是配置比例分母。
-7. 本月资产盈亏与收入/支出的净资产贡献不同：资产盈亏用于价格、汇率、买卖成本和资产收益归因；收入/支出在盈亏趋势中单列。归因与净资产变动必须统一以上一个实际月份的当前期末为比较基准；`opening` 只用于同步重建和对账，不能作为归因基准，否则两套期初的差额会落入“未解释调整”。现金盈亏另外拆分汇率影响、资产收益和手工余额调整。
+7. 本月资产盈亏与收入/支出的净资产贡献不同：资产盈亏用于价格、汇率、买卖成本和资产收益归因；收入/支出在盈亏趋势中单列。归因与净资产变动优先以上一个实际月份的当前期末为比较基准；账本首月没有真实上月时，使用期末反向扣除本月流水得到的期初，其中自动报价股票可用 `openingPrices` 的上月底价格替换期末价格，其余无流水资产估值保持不变。`opening` 只用于同步重建和对账，不能作为归因基准，否则两套期初的差额会落入“未解释调整”。现金盈亏另外拆分汇率影响、资产收益和手工余额调整。
 8. 所有修改应由 `transact()` 自动生成字段级变更明细；同步提示展示余额、数量、价格、汇率和流水去向等具体差异。不得依赖时间戳判断是否需要同步。
 9. JSON 导入对历史流水采用兼容校验：资产引用 ID 必须存在，但不追溯性强制旧流水符合当前的资产类别选择规则。新建非现金收入用 `nonCashIncome: true` 标记，股票数量型收入另用 `incomeAssetMode: "quantity"`；没有这些字段的旧收入保持原余额和现金流口径。
 
@@ -68,7 +68,7 @@ ledger.months[YYYY-MM]
 ## 最低验证
 
 ```sh
-node -e 'const fs=require("fs"); const h=fs.readFileSync("wealth_tracker.html","utf8"); new Function(h.slice(h.lastIndexOf("<script>")+8,h.lastIndexOf("</script>")); console.log("syntax ok")'
+node -e 'const fs=require("fs"); const h=fs.readFileSync("index.html","utf8"); new Function(h.slice(h.lastIndexOf("<script>")+8,h.lastIndexOf("</script>")); console.log("syntax ok")'
 ```
 
 还应检查 `demo-ledger.json` 能被解析，且每条 `fromAssetId` / `toAssetId` 都存在于该月 `balance`。数据计算或同步逻辑改动时，优先用演示账本手工验证买入、卖出、资产收益、删除资产与跨月同步。
