@@ -8,9 +8,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <title id="pageTitle">WEALTH TRACKER</title>
-<link rel="icon" type="image/svg+xml" href="./wealth_tracker.svg" />
-<link rel="apple-touch-icon" sizes="180x180" href="./wealth_tracker-180.png?v=20260803-v25" />
-<link rel="manifest" href="./manifest.webmanifest?v=20260803-v25" />
+<link rel="icon" type="image/svg+xml" href="./assets/images/wealth_tracker.svg" />
+<link rel="apple-touch-icon" sizes="180x180" href="./assets/images/wealth_tracker-180.png?v=20260803-v26" />
+<link rel="manifest" href="./manifest.webmanifest?v=20260803-v26" />
 <style>
 :root{
   --bg:#efe9db; --panel:#faf7f0; --panel2:#f4efe3; --line:#e0d7c4;
@@ -382,7 +382,7 @@ tr.nettotal td{background:var(--panel2);font-weight:700;font-size:15px}
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><img class="brand-icon" src="./wealth_tracker.svg" alt="" /><div class="brand-copy"><span class="brand-kicker">WEALTH TRACKER</span><span id="brandName">资产价值追踪</span></div></div>
+  <div class="brand"><img class="brand-icon" src="./assets/images/wealth_tracker.svg" alt="" /><div class="brand-copy"><span class="brand-kicker">WEALTH TRACKER</span><span id="brandName">资产价值追踪</span></div></div>
   <div class="ledger-ctrl">
     <button id="btnLedgerManager">账本管理</button>
     <button id="btnBackup" title="下载当前账本的 JSON 备份">备份</button>
@@ -619,6 +619,7 @@ tr.nettotal td{background:var(--panel2);font-weight:700;font-size:15px}
 </div>
 
 <script>
+// ==================== core module ====================
 "use strict";
 /* =========================================================
    Wealth Tracker —— 单 JSON、本地优先的资产价值追踪工具
@@ -666,25 +667,6 @@ let encryptionMeta = null;
 // 已知账本注册表: name -> fileHandle。会话内内存 + IndexedDB 持久化(句柄可跨刷新恢复)
 const registry = {};
 
-// ---------- IndexedDB: 持久化文件句柄 ----------
-function idbOpen(){
-  return new Promise((res,rej)=>{
-    const req=indexedDB.open(IDB_DB,1);
-    req.onupgradeneeded=()=>req.result.createObjectStore(IDB_STORE);
-    req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error);
-  });
-}
-async function idbSet(key,val){ const db=await idbOpen(); return new Promise((res,rej)=>{
-  const tx=db.transaction(IDB_STORE,"readwrite"); tx.objectStore(IDB_STORE).put(val,key);
-  tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
-async function idbGetAll(){ const db=await idbOpen(); return new Promise((res,rej)=>{
-  const tx=db.transaction(IDB_STORE,"readonly"); const st=tx.objectStore(IDB_STORE);
-  const keys=st.getAllKeys(), vals=st.getAll(); const out={};
-  tx.oncomplete=()=>{ keys.result.forEach((k,i)=>out[k]=vals.result[i]); res(out); }; tx.onerror=()=>rej(tx.error); }); }
-async function idbDel(key){ const db=await idbOpen(); return new Promise((res,rej)=>{
-  const tx=db.transaction(IDB_STORE,"readwrite"); tx.objectStore(IDB_STORE).delete(key);
-  tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
-const LS_ACTIVE = "familyLedger.active";  // 记住上次打开的账本名
 
 // ---------- 工具 ----------
 function uid(p){ return (p||"id")+"_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
@@ -733,13 +715,13 @@ function renderReadmeMarkdown(markdown){
 async function loadGuide(){
   const target=$("guideContent");
   if(!target) return;
-  const downloads=`<p><a href="./README.md?v=20260803-v25" download="README.md">下载 README</a>　<a href="./PROJECT_CONTEXT.md?v=20260803-v25" download="PROJECT_CONTEXT.md">下载 Project Context</a></p>`;
+  const downloads=`<p><a href="./README.md?v=20260803-v26" download="README.md">下载 README</a>　<a href="./PROJECT_CONTEXT.md?v=20260803-v26" download="PROJECT_CONTEXT.md">下载 Project Context</a></p>`;
   if(location.protocol==="file:"){
     target.innerHTML=`<h3>使用说明</h3><p>本地文件模式下，浏览器禁止网页直接读取同目录 README。请通过下方链接打开或下载说明文件；在 HTTPS 网页或 PWA 中会自动显示 README 的最新内容。</p>${downloads}`;
     return;
   }
   try{
-    const response=await fetch("./README.md?v=20260803-v25",{cache:"no-store"});
+    const response=await fetch("./README.md?v=20260803-v26",{cache:"no-store"});
     if(!response.ok) throw new Error(`HTTP ${response.status}`);
     target.innerHTML=downloads+renderReadmeMarkdown(await response.text());
   }catch(error){
@@ -1063,36 +1045,6 @@ function refreshAssetSuggestions(){
     .map(value=>`<option value="${escapeAttr(value)}"></option>`).join("");
   render("assetGroupList",groups); render("assetAccountList",accounts);
 }
-function b64(bytes){
-  const data=new Uint8Array(bytes); let binary="";
-  for(let i=0;i<data.length;i+=0x8000) binary+=String.fromCharCode(...data.subarray(i,i+0x8000));
-  return btoa(binary);
-}
-function unb64(value){ return Uint8Array.from(atob(value),c=>c.charCodeAt(0)); }
-async function deriveEncryptionKey(password,salt){
-  const material=await crypto.subtle.importKey("raw",new TextEncoder().encode(password),"PBKDF2",false,["deriveKey"]);
-  return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:210000,hash:"SHA-256"},material,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
-}
-async function protectLedger(data,password){
-  if(!crypto.subtle) throw new Error("当前浏览器不支持本地加密");
-  const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
-  const key=await deriveEncryptionKey(password,salt);
-  const ciphertext=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(JSON.stringify(data)));
-  return {schema:"nimble-ledger-encrypted-v1",encryption:{kdf:"PBKDF2-SHA-256",iterations:210000,salt:b64(salt)},iv:b64(iv),ciphertext:b64(ciphertext),key,meta:{salt:b64(salt)}};
-}
-async function serializeLedger(){
-  if(!encryptionKey) return ledger;
-  const iv=crypto.getRandomValues(new Uint8Array(12));
-  const ciphertext=await crypto.subtle.encrypt({name:"AES-GCM",iv},encryptionKey,new TextEncoder().encode(JSON.stringify(ledger)));
-  return {schema:"nimble-ledger-encrypted-v1",encryption:{kdf:"PBKDF2-SHA-256",iterations:210000,salt:encryptionMeta.salt},iv:b64(iv),ciphertext:b64(ciphertext)};
-}
-async function unlockLedger(wrapper,password){
-  try{
-    const salt=unb64(wrapper.encryption.salt), key=await deriveEncryptionKey(password,salt);
-    const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(wrapper.iv)},key,unb64(wrapper.ciphertext));
-    return {data:JSON.parse(new TextDecoder().decode(plain)),key,meta:{salt:wrapper.encryption.salt}};
-  }catch(e){ throw new Error("密码错误或加密账本已损坏"); }
-}
 
 function newLedger(name){
   return {
@@ -1185,110 +1137,60 @@ function monthGroupTotals(mKey){
   return g;
 }
 function flowCNY(f,mKey){ return flowAmount(f)*fxRate(f.currency||"CNY",mKey); }
-function contributionGroup(row){
-  const prefix=row.cls==="liability"?"负债":"资产";
-  return prefix+"·"+(row.group||ASSET_CLASSES[row.cls]?.name||"未分组");
+
+// ==================== storage module ====================
+// ---------- IndexedDB: 持久化文件句柄 ----------
+function idbOpen(){
+  return new Promise((res,rej)=>{
+    const req=indexedDB.open(IDB_DB,1);
+    req.onupgradeneeded=()=>req.result.createObjectStore(IDB_STORE);
+    req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error);
+  });
 }
-function balanceTotals(balance,fxRates){
-  let net=0, assets=0, liab=0;
-  (balance||[]).forEach(row=>{
-    const sign=ASSET_CLASSES[row.cls]?.sign||1;
-    const rate=Number(fxRates?.[row.currency||"CNY"]||1);
-    const value=rowNative(row)*rate*sign;
-    net+=value; if(value<0) liab+=value; else assets+=value;
-  });
-  return {net,assets,liab};
+async function idbSet(key,val){ const db=await idbOpen(); return new Promise((res,rej)=>{
+  const tx=db.transaction(IDB_STORE,"readwrite"); tx.objectStore(IDB_STORE).put(val,key);
+  tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+async function idbGetAll(){ const db=await idbOpen(); return new Promise((res,rej)=>{
+  const tx=db.transaction(IDB_STORE,"readonly"); const st=tx.objectStore(IDB_STORE);
+  const keys=st.getAllKeys(), vals=st.getAll(); const out={};
+  tx.oncomplete=()=>{ keys.result.forEach((k,i)=>out[k]=vals.result[i]); res(out); }; tx.onerror=()=>rej(tx.error); }); }
+async function idbDel(key){ const db=await idbOpen(); return new Promise((res,rej)=>{
+  const tx=db.transaction(IDB_STORE,"readwrite"); tx.objectStore(IDB_STORE).delete(key);
+  tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+const LS_ACTIVE = "familyLedger.active";  // 记住上次打开的账本名
+
+
+function b64(bytes){
+  const data=new Uint8Array(bytes); let binary="";
+  for(let i=0;i<data.length;i+=0x8000) binary+=String.fromCharCode(...data.subarray(i,i+0x8000));
+  return btoa(binary);
 }
-// 首月没有真实上月快照时，反向重放流水构造期初。自动报价股票可用保存的上月底价格，
-// 其余资产按“无流水则估值不变”处理。
-function openingBaseline(mKey){
-  const m=ledger.months[mKey];
-  const balance=structuredClone(m?.balance||[]);
-  [...(m?.flows||[])].reverse().forEach(flow=>applyFlowToBalance(balance,flow,-1));
-  balance.forEach(row=>{
-    const price=m?.openingPrices?.[row.id]?.price;
-    if(row.cls==="stock"&&row.auto&&Number.isFinite(Number(price))&&Number(price)>0) row.price=Number(price);
-  });
-  return {balance,fxRates:m?.fxRates||{CNY:1}};
+function unb64(value){ return Uint8Array.from(atob(value),c=>c.charCodeAt(0)); }
+async function deriveEncryptionKey(password,salt){
+  const material=await crypto.subtle.importKey("raw",new TextEncoder().encode(password),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:210000,hash:"SHA-256"},material,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
 }
-// 逐资产扣除流水的直接影响：交易按成本/成交额，资产收益归入来源资产，剩余即价格、汇率或手工估值贡献。
-// 该结果同时供月度资产负债表与整体趋势使用，避免两处归因口径不一致。
-function assetProfitAttribution(mKey,prevKey){
-  const m=ledger.months[mKey];
-  if(!m) return {m:mKey,rowPnl:{},entries:[],isBaseline:true};
-  const hasPrevious=Boolean(prevKey&&ledger.months[prevKey]);
-  const prev=hasPrevious?ledger.months[prevKey]:openingBaseline(mKey);
-  const prevFxKey=hasPrevious?prevKey:mKey;
-  const expected={}, expectedNative={}, assetIncome={}, realized={};
-  const addExpected=(assetId,value)=>{ if(assetId) expected[assetId]=(expected[assetId]||0)+value; };
-  const addExpectedNative=(assetId,value)=>{ if(assetId) expectedNative[assetId]=(expectedNative[assetId]||0)+value; };
-  const addAssetIncome=(assetId,value)=>{ if(assetId) assetIncome[assetId]=(assetIncome[assetId]||0)+value; };
-  const addRealized=(assetId,value)=>{ if(assetId) realized[assetId]=(realized[assetId]||0)+value; };
-  (m.flows||[]).forEach(f=>{
-    const value=flowCNY(f,mKey);
-    if(f.kind==="income"){
-      addExpected(f.toAssetId,+value); addExpectedNative(f.toAssetId,+flowAmount(f));
-    }else if(f.kind==="expense"){
-      addExpected(f.fromAssetId,-value); addExpectedNative(f.fromAssetId,-flowAmount(f));
-    }
-    else if(f.kind==="buy"){
-      addExpected(f.fromAssetId,-value); addExpected(f.toAssetId,+value);
-      addExpectedNative(f.fromAssetId,-flowAmount(f));
-      addRealized(f.toAssetId,Number(f.realizedPnlCNY||0));
-    }else if(f.kind==="sell"){
-      addExpected(f.toAssetId,+value); addExpected(f.fromAssetId,-value);
-      addExpectedNative(f.toAssetId,+flowAmount(f));
-      addRealized(f.fromAssetId,Number(f.realizedPnlCNY||0));
-    }else if(f.kind==="dividend"){
-      addExpected(f.toAssetId,+value); addExpectedNative(f.toAssetId,+flowAmount(f)); addAssetIncome(f.fromAssetId,value);
-    }else if(f.kind==="transfer"){
-      addExpected(f.fromAssetId,-value);
-      const toRow=assetByFlow(m,f,"to"), toCurrency=f.toCurrency||toRow?.currency||f.currency||"CNY";
-      const toAmount=Number(f.toAmount!=null?f.toAmount:f.amount||0);
-      addExpected(f.toAssetId,toAmount*fxRate(toCurrency,mKey));
-      addExpectedNative(f.fromAssetId,-flowAmount(f)); addExpectedNative(f.toAssetId,+toAmount);
-    }else if(f.kind==="repay"){
-      addExpected(f.fromAssetId,-value); addExpected(f.toAssetId,+value);
-      addExpectedNative(f.fromAssetId,-flowAmount(f)); addExpectedNative(f.toAssetId,-flowAmount(f));
-    }
-  });
-  const curById=new Map(m.balance.map(row=>[row.id,row]));
-  const prevById=new Map((prev.balance||[]).map(row=>[row.id,row]));
-  const rowPnl={}, entries=[];
-  new Set([...curById.keys(),...prevById.keys()]).forEach(id=>{
-    const current=curById.get(id), previous=prevById.get(id), row=current||previous;
-    const previousValue=previous?rowNative(previous)*fxRate(previous.currency||"CNY",prevFxKey)*(ASSET_CLASSES[previous.cls]?.sign||1):0;
-    const delta=(current?rowCNY(current,mKey):0)-previousValue;
-    const pnl=delta-(expected[id]||0)+(assetIncome[id]||0);
-    const manualAdjustment=row?.cls==="cash"
-      ? ((current?rowNative(current):0)-(previous?rowNative(previous):0)-(expectedNative[id]||0))*fxRate(row.currency||"CNY",mKey)
-      : 0;
-    const fxImpact=row?.cls==="cash"?pnl-(assetIncome[id]||0)-manualAdjustment:0;
-    rowPnl[id]=pnl;
-    entries.push({id,row,pnl,income:assetIncome[id]||0,realized:realized[id]||0,manualAdjustment,fxImpact,unrealized:pnl-(assetIncome[id]||0)-(realized[id]||0)});
-  });
-  return {m:mKey,rowPnl,entries,isBaseline:!hasPrevious};
+async function protectLedger(data,password){
+  if(!crypto.subtle) throw new Error("当前浏览器不支持本地加密");
+  const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
+  const key=await deriveEncryptionKey(password,salt);
+  const ciphertext=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(JSON.stringify(data)));
+  return {schema:"nimble-ledger-encrypted-v1",encryption:{kdf:"PBKDF2-SHA-256",iterations:210000,salt:b64(salt)},iv:b64(iv),ciphertext:b64(ciphertext),key,meta:{salt:b64(salt)}};
 }
-function profitAttribution(mKey,prevKey){
-  const hasPrevious=Boolean(prevKey&&ledger.months[prevKey]);
-  const asset=assetProfitAttribution(mKey,prevKey);
-  const deltas={};
-  (ledger.months[mKey]?.flows||[]).forEach(f=>{
-    const value=flowCNY(f,mKey);
-    if(f.kind==="income") deltas["收入"]=(deltas["收入"]||0)+value;
-    else if(f.kind==="expense") deltas["支出"]=(deltas["支出"]||0)-value;
-  });
-  asset.entries.forEach(({row,pnl})=>{
-    const group=contributionGroup(row);
-    deltas[group]=(deltas[group]||0)+pnl;
-  });
-  const opening=hasPrevious?monthTotals(prevKey):balanceTotals(openingBaseline(mKey).balance,ledger.months[mKey]?.fxRates);
-  const netDelta=monthTotals(mKey).net-opening.net;
-  const explained=Object.values(deltas).reduce((sum,value)=>sum+value,0);
-  const residual=netDelta-explained;
-  if(Math.abs(residual)>0.01) deltas["未解释调整"]=residual;
-  return {m:mKey,deltas,netDelta,isBaseline:!hasPrevious};
+async function serializeLedger(){
+  if(!encryptionKey) return ledger;
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext=await crypto.subtle.encrypt({name:"AES-GCM",iv},encryptionKey,new TextEncoder().encode(JSON.stringify(ledger)));
+  return {schema:"nimble-ledger-encrypted-v1",encryption:{kdf:"PBKDF2-SHA-256",iterations:210000,salt:encryptionMeta.salt},iv:b64(iv),ciphertext:b64(ciphertext)};
 }
+async function unlockLedger(wrapper,password){
+  try{
+    const salt=unb64(wrapper.encryption.salt), key=await deriveEncryptionKey(password,salt);
+    const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(wrapper.iv)},key,unb64(wrapper.ciphertext));
+    return {data:JSON.parse(new TextDecoder().decode(plain)),key,meta:{salt:wrapper.encryption.salt}};
+  }catch(e){ throw new Error("密码错误或加密账本已损坏"); }
+}
+
 
 // ---------- 存储层 (严格文件绑定) ----------
 async function persist(touchActiveMonth=true){
@@ -1313,795 +1215,203 @@ async function persist(touchActiveMonth=true){
   renderStorageInfo();
 }
 
-// ---------- 渲染: 顶部 ----------
-function applyLedgerIdentity(){
-  $("pageTitle").textContent = ledger ? `${APP_NAME} - ${ledger.name}` : APP_NAME;
-  $("brandName").textContent = ledger ? ledger.name : "资产价值追踪";
-}
-function renderLedgerManager(){
-  const names=Object.keys(registry).sort();
-  $("ledgerManagerCurrent").innerHTML = ledger ? `当前账本：<b>${escapeHTML(ledger.name)}</b>` : "当前未打开账本";
-  $("btnBackup").disabled=!ledger;
-  $("btnManagerRename").disabled=!ledger;
-  $("btnManagerPassword").disabled=!ledger;
-  $("btnManagerPassword").textContent=encryptionKey?"修改密码":"设置密码";
-  $("ledgerManagerList").innerHTML = names.length
-    ? names.map(n=>`<div class="ledger-item"><button class="ledger-switch" data-ledger-switch="${escapeAttr(n)}"><span class="ledger-name">${escapeHTML(n)}</span><span class="ledger-state">${ledger&&n===ledger.name?"当前":"切换"}</span></button><button class="mini danger" data-ledger-remove="${escapeAttr(n)}">删除记录</button></div>`).join("")
-    : `<div class="empty">尚未打开或创建账本</div>`;
-}
-function renderStorageInfo(){
-  if(!ledger){ $("storageInfo").textContent=""; return; }
-  const bytes = new Blob([JSON.stringify(ledger)]).size;
-  const mCount = Object.keys(ledger.months).length;
-  const location = demoMode ? " · 演示模式（未保存）" : (fileHandle ? ` · ${directoryHandle?.name||"本地文件"}` : " · 导入模式");
-  $("storageInfo").textContent = `${mCount} 个月 · ${(bytes/1024).toFixed(1)} KB${location}`;
-}
 
-// ---------- 渲染: 月份 tabs ----------
-function renderMonthTabs(){
-  const nav = $("monthTabs");
-  const keys = monthKeys();
-  if(activeMonth && !ledger.months[activeMonth]) activeMonth=null;
-  if(!activeMonth && keys.length) activeMonth = keys[keys.length-1];
-  const latestKey=keys[keys.length-1];
-  nav.innerHTML = keys.map(k=>{
-    return `
-    <div class="month-tab ${k===activeMonth?"active":""}" data-m="${k}">
-      <span class="lbl">${k}</span>${k===latestKey?`<span class="close" data-del="${k}" title="删除此月（将先下载备份）">✕</span>`:""}</div>`;
-  }).join("") + `<button class="add-tab" id="btnAddMonth">＋ 添加月份</button>`;
-
-  nav.querySelectorAll(".month-tab").forEach(el=>{
-    el.addEventListener("click",()=>{
-      if(activeMonth!==el.dataset.m){ balanceEditMode=false; flowEditMode=false; }
-      activeMonth=el.dataset.m; renderMonthTabs(); renderMonthPanel();
-    });
-  });
-  nav.querySelectorAll(".close").forEach(el=>{
-    el.addEventListener("click",async e=>{
-      e.stopPropagation();
-      const k=el.dataset.del;
-      // 只允许删除最新月
-      if(k!==latestKey){
-        alert(`只允许删除最新月份（${latestKey}）。\n「${k}」是旧月份，无法删除以防止数据链断裂。`);
-        return;
-      }
-      // 检查是否被后续月份依赖（理论上最新月不会被依赖，但保险起见）
-      const hasDep=Object.values(ledger.months).some(m=>m.copiedFrom===k);
-      if(hasDep){
-        alert(`「${k}」被后续月份引用，无法删除。`);
-        return;
-      }
-      if(!confirm(`删除 ${k} 的全部数据？\n⚠️ 将先自动备份当前 JSON 文件，然后删除。`)) return;
-      const backupName=(ledger.name||"ledger").replace(/_ledger_data\.json$/,"")+`_backup_before_del_${k}.json`;
-      if(!(await backupCurrentLedger(backupName))) return;
-      const previousActive=activeMonth;
-      if(activeMonth===k) activeMonth=null;
-      const ok=await transact("删除月份",()=>{ delete ledger.months[k]; },{touch:false});
-      if(!ok) activeMonth=previousActive;
-    });
-  });
-  $("btnAddMonth").addEventListener("click",addMonth);
-  requestAnimationFrame(()=>nav.querySelector(".month-tab.active")?.scrollIntoView({block:"nearest",inline:"nearest"}));
+// ---------- 账本 加载/创建/打开 (严格文件绑定) ----------
+async function verifyPermission(handle, write){
+  const opts={mode: write?"readwrite":"read"};
+  if((await handle.queryPermission(opts))==="granted") return true;
+  if((await handle.requestPermission(opts))==="granted") return true;
+  return false;
 }
-
-async function addMonth(){
-  const now=new Date();
-  const def = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
-  const k = prompt("添加月份 (YYYY-MM):", def);
-  if(!k) return;
-  if(!isValidMonthKey(k)){ alert("请输入有效月份（YYYY-MM）"); return; }
-  if(ledger.months[k]){ balanceEditMode=false; flowEditMode=false; activeMonth=k; renderMonthTabs(); renderMonthPanel(); return; }
-  const month=newMonth();
-  const keys=monthKeys();
-  const next=keys.find(x=>x>k)||null;
-  // 取最近的一个更早月份作为拷贝对象: 拷贝资产负债表 + 汇率, 不拷贝流水
-  const prev = keys.filter(x=>x<k).pop();
-  if(prev){
-    // 拷贝上月资产,但已清仓(数量/金额归零)的持有资产不再带入
-    month.balance = ledger.months[prev].balance
-      .map(r=>{
-        const c={...r};
-        delete c.openedThisMonth;
-        delete c.priceStatus; delete c.priceAt; delete c.manualPriceAt;
-        if(isClosed(c)) c.inactive=true; else delete c.inactive;
-        return c;
-      });
-    month.fxRates = {...(ledger.months[prev].fxRates||{CNY:1})};
-    month.copiedFrom = prev;
-    month.sourceUpdatedAt = ledger.months[prev].updatedAt||month.createdAt;
-    month.sourceRevision=Number(ledger.months[prev].revision||0);
-    month.opening = month.balance.map(r=>({id:r.id,cls:r.cls,name:r.name,qty:r.qty,value:r.value,price:r.price}));
-  }
-  const previousActive=activeMonth; balanceEditMode=false; flowEditMode=false; activeMonth=k;
-  const ok=await transact("添加月份",()=>{
-    ledger.months[k]=month;
-    // 在现有月份之间补建月份时，把原直接子月改为继承新月份，保持单一时间链。
-    if(prev&&next&&ledger.months[next]?.copiedFrom===prev){
-      ledger.months[next].copiedFrom=k;
-      ledger.months[next].sourceRevision=Number(month.revision||0);
-      ledger.months[next].sourceUpdatedAt=month.updatedAt;
+async function useHandle(handle, {isNew, directory}={}){
+  let nextLedger=ledger, nextEncryptionKey=encryptionKey, nextEncryptionMeta=encryptionMeta;
+  if(!isNew){
+    const file=await handle.getFile();
+    let obj=JSON.parse(await file.text());
+    nextEncryptionKey=null; nextEncryptionMeta=null;
+    if(obj.schema==="nimble-ledger-encrypted-v1"){
+      const password=await requestPassword({title:`打开加密账本：${file.name}`,hint:"请输入此账本的密码以解锁本地 JSON"});
+      if(password==null){ const e=new Error("已取消输入密码"); e.name="AbortError"; throw e; }
+      const unlocked=await unlockLedger(obj,password);
+      obj=unlocked.data; nextEncryptionKey=unlocked.key; nextEncryptionMeta=unlocked.meta;
     }
-  },{touch:false});
-  if(!ok) activeMonth=previousActive;
-}
-
-// ---------- 渲染: 月面板 (资产负债表) ----------
-function renderMonthPanel(){
-  const el = $("monthPanel");
-  if(!ledger){ el.innerHTML = `<div class="empty">请先「新建账本」或「打开…」一个账本。</div>`; return; }
-  if(!activeMonth){ el.innerHTML = `<div class="empty">还没有月份，点上方「＋ 添加月份」开始。</div>`; return; }
-  const m = ledger.months[activeMonth];
-  const t = monthTotals(activeMonth);
-  const net = t.net || 0;
-  const prevKey=previousMonthKey(activeMonth);
-  const prevTotals=ledger.months[prevKey] ? monthTotals(prevKey) : null;
-  const cashFlow=cashFlowTotals(activeMonth);
-  const prevCashFlow=prevTotals ? cashFlowTotals(prevKey) : null;
-  // 与整体趋势一致：若中间月份缺失，仍以前一个已存在月份作为盈亏比较基准。
-  const pnlPrevKey=monthKeys().filter(k=>k<activeMonth).pop()||null;
-  const assetPnl=assetProfitAttribution(activeMonth,pnlPrevKey);
-  const manualFields=new Set((reconcile(activeMonth)?.issues||[]).filter(i=>i.id&&i.field).map(i=>`${i.id}:${i.field}`));
-  const metricCard=(label,value,prevValue)=>{
-    const valueClass=value<0?"neg":"";
-    if(prevValue==null) return `<div class="card"><div class="label">${label}</div><div class="value num ${valueClass}">${amount(value)}</div></div>`;
-    const delta=value-prevValue, deltaClass=delta>0?"pos":delta<0?"neg":"";
-    const pct=prevValue===0 ? "—" : `${delta>0?"+":""}${(delta/Math.abs(prevValue)*100).toFixed(1)}%`;
-    return `<div class="card"><div class="label">${label}</div><div class="value num ${valueClass}">${amount(value)}</div>
-      <div class="cf-sub mut">月环比 <span class="num ${deltaClass}">${delta>0?"+":""}${amount(delta)}</span> · <span class="${deltaClass}">${pct}</span></div></div>`;
-  };
-  const pnlCell=(value,id)=>{
-    const tone=value>0?"pos":value<0?"neg":"pnl-zero";
-    const detail=assetPnl.entries.find(entry=>entry.id===id);
-    const title=detail?.row?.cls==="cash"
-      ? `本月盈亏：${fmtFull(value)}\n汇率影响：${fmtFull(detail.fxImpact||0)}\n资产收益：${fmtFull(detail.income||0)}\n余额调整：${fmtFull(detail.manualAdjustment||0)}`
-      : detail?`本月盈亏：${fmtFull(value)}\n已实现：${fmtFull(detail.realized||0)}\n资产收益：${fmtFull(detail.income||0)}\n估值/汇兑：${fmtFull(detail.unrealized||0)}`:`完整本月盈亏：${fmtFull(value)}`;
-    return `<span class="amount ${tone}" title="${escapeAttr(title)}">${value>0?"+":""}${fmtTrend(value)}</span>`;
-  };
-
-  // 按分组聚合
-  const groups = {};
-  const visibleBalance=m.balance.map((r,idx)=>({r,idx})).filter(({r})=>!r.inactive);
-  visibleBalance.forEach(({r,idx})=>{ (groups[r.group||"未分组"] ||= []).push({r,idx}); });
-  // 分组之间按组总金额降序
-  const groupNames = Object.keys(groups).sort((a,b)=>{
-    const sa=groups[a].reduce((s,x)=>s+rowCNY(x.r),0);
-    const sb=groups[b].reduce((s,x)=>s+rowCNY(x.r),0);
-    return sb-sa;
-  });
-  const sortedGroups=groupNames.map(name=>({name,items:groups[name].slice().sort((a,b)=>rowCNY(b.r)-rowCNY(a.r))}));
-
-  let body = "";
-  if(!visibleBalance.length){
-    body = `<tr><td colspan="9" class="empty">本月暂无资产条目，点「＋ 添加资产」开始。</td></tr>`;
-  }else{
-    sortedGroups.forEach(({name:g,items})=>{
-      let gSum=0, gPnl=0, gAssets=0, gLiabs=0;
-      items.forEach(({r})=>{ const value=rowCNY(r); gSum+=value; gPnl+=assetPnl.rowPnl[r.id]||0; if(value>=0) gAssets+=value; else gLiabs+=Math.abs(value); });
-      // 分组标题行
-      body += `<tr class="group-head"><td colspan="9">${escapeHTML(g)}</td></tr>`;
-      // 资产行
-      body += items.map(({r,idx})=>{
-        const cls=ASSET_CLASSES[r.cls]; const cny=rowCNY(r);
-        const pct = cny<0 ? (t.liab?Math.abs(cny/t.liab*100):0) : (t.assets?cny/t.assets*100:0);
-        const pnl=assetPnl.rowPnl[r.id]||0;
-        const manual=field=>manualFields.has(`${r.id}:${field}`)?` <span class="badge manual" title="该字段存在未由流水解释的手动调整">手调</span>`:"";
-        const manualPriceBadge=r.manualPriceAt===activeMonth
-          ? ` <span class="badge manual-ok" title="本月已人工校正">✓</span>`
-          : ` <button type="button" class="badge manual price-status-btn" data-price-edit="${idx}" title="需要人工维护；点击修改价格" aria-label="修改价格">✎</button>`;
-        let priceCell="-";
-        if(r.cls==="stock"){
-          const badge = (r.auto && r.priceStatus==="ok")?`<span class="badge ok" title="已更新 ${escapeAttr(r.priceAt||"")}">✓</span>`
-                     : ((r.auto && r.priceStatus==="warn")?`<button type="button" class="badge warn price-status-btn" data-price-edit="${idx}" title="自动获取失败；点击手动修改价格" aria-label="修改价格">❗</button>`
-                     : ((r.auto&&r.manualPriceAt===activeMonth)?`<span class="badge manual-ok" title="已手动修正">✓</span>`:(r.auto?"":manualPriceBadge)));
-          priceCell=`${moneyCell(r.price,r.currency||"CNY",fmtPrice)} ${badge}`;
-        }else if(!cls.hasQty){
-          priceCell=moneyCell(rowNative(r),r.currency||"CNY")+((r.cls==="fund"||r.cls==="fixed")?manualPriceBadge:"");
-        }
-        const autoBtn = (cls&&cls.hasAuto&&r.auto)
-          ? `<button class="mini icon-btn" data-price="${idx}" title="更新股价：${escapeAttr(r.market||"")}:${escapeAttr(r.symbol||"")}" aria-label="更新股价">↻</button>` : "";
-        return `<tr>
-          <td>${escapeHTML(r.name||"-")}${r.symbol?` <span class="mut">${escapeHTML(r.market||"")}${r.market?":":""}${escapeHTML(r.symbol)}</span>`:""} ${positionBadge(r)}</td>
-          <td>${escapeHTML(cls?cls.name:r.cls)}</td>
-          <td>${escapeHTML(cls&&cls.hasAccount?(r.account||"-"):"-")}</td>
-          <td class="num">${cls&&cls.hasQty?fmtQuantity(r.qty)+manual("qty"):"-"}</td>
-          <td class="num">${priceCell}</td>
-          <td class="num ${cny<0?"neg":""}">${fmtMoney(cny)}${manual("value")}</td>
-          <td class="num mut">${pct.toFixed(1)}%</td>
-          <td class="num">${pnlCell(pnl,r.id)}</td>
-          <td class="ops">${autoBtn}<button class="mini icon-btn" data-edit="${idx}" title="编辑资产与价格" aria-label="编辑资产">✎</button><button class="mini danger icon-btn" data-del="${idx}" title="删除资产" aria-label="删除资产">×</button></td>
-        </tr>`;
-      }).join("");
-      // 分组汇总行
-      const assetShare=t.assets?(gAssets/t.assets*100):0;
-      const liabilityShare=t.liab?(gLiabs/Math.abs(t.liab)*100):0;
-      const gPct = gAssets&&gLiabs
-        ? `资 ${assetShare.toFixed(1)}% · 债 ${liabilityShare.toFixed(1)}%`
-        : `${(gLiabs?liabilityShare:assetShare).toFixed(1)}%`;
-      body += `<tr class="subtotal"><td class="subtotal-label">小计</td><td></td><td></td><td></td><td></td>
-        <td class="num subtotal-amount ${gSum<0?"neg":""}">${fmtMoney(gSum)}</td><td class="num mut subtotal-pct">${gPct}</td><td class="num">${pnlCell(gPnl)}</td><td></td></tr>`;
-    });
+    nextLedger=migrateLedger(obj);
   }
-  const mobileBalance = sortedGroups.map(({name:g,items})=>{
-    return `<div class="mobile-group">${escapeHTML(g)}</div>`+items.map(({r,idx})=>{
-      const cls=ASSET_CLASSES[r.cls], cny=rowCNY(r), pct=cny<0?(t.liab?Math.abs(cny/t.liab*100):0):(t.assets?cny/t.assets*100:0);
-      const pnl=assetPnl.rowPnl[r.id]||0;
-      const needsManualPrice=(r.cls==="fund"||r.cls==="fixed")&&r.manualPriceAt!==activeMonth;
-      const failedAutoPrice=r.cls==="stock"&&r.auto&&r.priceStatus==="warn";
-      const priceAction=(needsManualPrice||failedAutoPrice)?` <button type="button" class="badge ${failedAutoPrice?"warn":"manual"} price-status-btn" data-price-edit="${idx}" title="点击修改价格" aria-label="修改价格">${failedAutoPrice?"❗":"✎"}</button>`:"";
-      const price=(cls.hasQty?`${fmtQuantity(r.qty)} × ${fmtPrice(r.price)} ${escapeHTML(r.currency||"CNY")}`:moneyCell(rowNative(r),r.currency||"CNY"))+priceAction;
-      const autoBtn=(cls.hasAuto&&r.auto)?`<button class="mini icon-btn" data-price="${idx}" title="更新股价">↻</button>`:"";
-      return `<article class="mobile-asset"><div class="mobile-title"><span>${escapeHTML(r.name||"-")} ${positionBadge(r)}</span><span class="${cny<0?"neg":""}">${fmtMoney(cny)}</span></div>
-        <div class="mobile-meta"><span>${escapeHTML(cls.name)} · ${escapeHTML(r.account||r.currency||"-")}</span><span>占${pct.toFixed(1)}%</span></div>
-        <div class="mobile-values"><span>${price}</span><span class="${pnl>0?"pos":pnl<0?"neg":""}">本月 ${pnl>0?"+":""}${fmtTrend(pnl)}</span></div>
-        <div class="mobile-ops">${autoBtn}<button class="mini icon-btn" data-edit="${idx}" title="编辑资产与价格">✎</button><button class="mini danger icon-btn" data-del="${idx}" title="删除资产">×</button></div></article>`;
-    }).join("");
-  }).join("");
-
-  el.innerHTML = `
-    ${renderDemoBanner()}
-    ${renderMonthMeta()}
-    ${renderCopyBanner()}
-    <div class="cards metric-cards">
-      ${metricCard("净资产", net, prevTotals?.net)}
-      ${metricCard("总资产", t.assets, prevTotals?.assets)}
-      ${metricCard("总负债", t.liab, prevTotals?.liab)}
-      ${metricCard("净现金流", cashFlow.net, prevCashFlow?.net)}
-    </div>
-    <div class="tbl-head">
-      <h3>资产负债表 · ${activeMonth}</h3>
-      <div>
-        <button class="mini" id="btnUpdateAll" title="批量刷新本月所有可自动更新的股价，并自动获取汇率">↻ 更新股价和汇率</button>
-        <button class="mini" id="btnBalanceEdit">编辑</button>
-        <button class="primary mini" id="btnAddAsset">＋ 添加资产</button>
-      </div>
-    </div>
-    <div class="table-wrap balance-table-wrap"><table class="balance">
-      <thead><tr><th>项目</th><th>类别</th><th>账户</th><th>数量</th><th>价格</th><th>金额(¥)</th><th>占比</th><th>本月盈亏</th><th>操作</th></tr></thead>
-      <tbody>${body}</tbody>
-    </table></div>
-    <div class="balance-mobile">${mobileBalance||`<div class="empty">本月暂无资产条目</div>`}</div>
-    ${renderFxBar()}
-    <div class="tbl-head" style="margin-top:24px">
-      <h3>流水表 · ${activeMonth}</h3>
-      <div><button class="mini" id="btnFlowEdit">编辑</button><button class="primary mini" id="btnAddFlow">＋ 添加流水</button></div>
-    </div>
-    ${renderFlowSummary()}
-    <div class="table-wrap"><table class="flow">
-      <thead><tr><th>日期</th><th>类型</th><th>流出方</th><th>流入方</th><th>金额</th><th>备注</th><th>操作</th></tr></thead>
-      <tbody>${renderFlowRows()}</tbody>
-    </table></div>
-    <p class="hint">收入、资产收益、支出、转账、买入、卖出、还款会自动同步修改上方资产负债表；删除流水会回滚其影响。</p>`;
-
-  // 事件
-  const demoBackup=$("btnDemoBackup"); if(demoBackup) demoBackup.addEventListener("click",()=>backupCurrentLedger());
-  const demoCreate=$("btnDemoCreate"); if(demoCreate) demoCreate.addEventListener("click",openCreateDialog);
-  const setTableEditing=(selector,button,editing)=>{
-    const table=el.querySelector(selector);
-    table.classList.toggle("editing",editing);
-    if(selector===".balance") el.querySelector(".balance-mobile")?.classList.toggle("editing",editing);
-    button.textContent=editing?"完成":"编辑";
-  };
-  setTableEditing(".balance",$("btnBalanceEdit"),balanceEditMode);
-  setTableEditing(".flow",$("btnFlowEdit"),flowEditMode);
-  $("btnBalanceEdit").addEventListener("click",e=>{ balanceEditMode=!balanceEditMode; setTableEditing(".balance",e.currentTarget,balanceEditMode); });
-  $("btnFlowEdit").addEventListener("click",e=>{ flowEditMode=!flowEditMode; setTableEditing(".flow",e.currentTarget,flowEditMode); });
-  $("btnAddAsset").addEventListener("click",()=>openAssetDialog(null));
-  $("btnUpdateAll").addEventListener("click",async()=>{ await updateAllPrices(); await autoFetchFx(); });
-  el.querySelectorAll("[data-edit]").forEach(b=>b.addEventListener("click",()=>openAssetDialog(+b.dataset.edit)));
-  el.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",async()=>{
-    const row=m.balance[+b.dataset.del];
-    if(!row) return;
-    const keys=monthKeys().filter(key=>key>=activeMonth);
-    const related=keys.reduce((count,key)=>count+(ledger.months[key].flows||[]).filter(flow=>flow.fromAssetId===row.id||flow.toAssetId===row.id).length,0);
-    if(!confirm(`删除资产「${row.name}」将影响 ${keys.length} 个月，并删除 ${related} 条相关流水。\n系统会先下载完整备份，是否继续？`)) return;
-    if(!(await backupCurrentLedger())) return;
-    await transact("删除资产",()=>{
-      keys.forEach(key=>{
-        const month=ledger.months[key];
-        const relatedFlows=(month.flows||[]).filter(flow=>flow.fromAssetId===row.id||flow.toAssetId===row.id);
-        // 先回滚流水对现金、负债及其他持仓的影响，再删除资产和流水记录。
-        relatedFlows.forEach(flow=>applyFlowToBalance(month.balance,flow,-1));
-        month.flows=(month.flows||[]).filter(flow=>flow.fromAssetId!==row.id&&flow.toAssetId!==row.id);
-        month.balance=(month.balance||[]).filter(asset=>asset.id!==row.id);
-        if(month.opening) month.opening=month.opening.filter(asset=>asset.id!==row.id);
-        if(month.openingPrices) delete month.openingPrices[row.id];
-        if(key!==activeMonth) markMonthChanged(key,`删除资产：${row.name}及关联流水`);
-      });
-      // 后续月份的期初可能仍带有被删除流水造成的现金影响，沿继承链重建。
-      let source=activeMonth;
-      while(true){
-        const child=childMonthOf(source);
-        if(!child) break;
-        rebuildChildFromParent(source,child);
-        source=child;
-      }
-    });
-  }));
-  el.querySelectorAll("[data-price]").forEach(b=>b.addEventListener("click",()=>updateOnePrice(+b.dataset.price)));
-  el.querySelectorAll("[data-price-edit]").forEach(b=>b.addEventListener("click",()=>openPriceEditor(+b.dataset.priceEdit)));
-  $("btnAddFlow").addEventListener("click",()=>openFlowDialog(null));
-  el.querySelectorAll("[data-fedit]").forEach(b=>b.addEventListener("click",()=>openFlowDialog(b.dataset.fedit)));
-  el.querySelectorAll("[data-fdel]").forEach(b=>b.addEventListener("click",()=>deleteFlow(b.dataset.fdel)));
-  bindFxBar();
-  const bn=$("btnSyncNext"); if(bn) bn.addEventListener("click",()=>{ if(confirm("将本月期末同步为下月期初并重算下月？")) syncToNext(activeMonth); });
-  const ba=$("btnSyncAll"); if(ba) ba.addEventListener("click",()=>{ if(confirm("沿拷贝链把改动同步到后续所有月份并重算？")) syncToAll(activeMonth); });
+  // 文件解析、密码验证和结构迁移全部成功后，才切换当前运行状态。
+  ledger=nextLedger;
+  encryptionKey=nextEncryptionKey;
+  encryptionMeta=nextEncryptionMeta;
+  fileHandle=handle;
+  directoryHandle=directory||null;
+  demoMode=false;
+  activeMonth=null; balanceEditMode=false; flowEditMode=false;
+  registry[ledger.name]=handle;
+  await idbSet(ledger.name, handle);      // 句柄持久化,便于刷新后重开
+  if(directoryHandle) await idbSet(`dir:${ledger.name}`,directoryHandle);
+  localStorage.setItem(LS_ACTIVE, ledger.name);
+  if(isNew) await persist();
+  renderAll();
 }
 
-// ---------- 流水表渲染 ----------
-function renderDemoBanner(){
-  if(!demoMode) return "";
-  return `<div class="banner info">当前为示例账本，数据仅在本次浏览器会话中展示，不会自动保存。
-    <button class="mini" id="btnDemoBackup">下载示例副本</button>
-    <button class="mini" id="btnDemoCreate">新建自己的账本</button>
-  </div>`;
-}
-function assetLabel(assetId){
-  const m=ledger.months[activeMonth]; const r=m.balance.find(row=>row.id===assetId);
-  if(!r) return "(已删除)";
-  const acc = r.account? r.account+"·" : "";
-  return acc + (r.name||"");
-}
-// ---------- 月面板顶部: 拷贝来源 + 对账提示 ----------
-function needsChildSync(fromKey,childKey){
-  const parent=ledger.months[fromKey], child=ledger.months[childKey];
-  if(!parent||!child) return false;
-  return Number(parent.revision||0)>Number(child.sourceRevision||0);
-}
-function monthTimeText(value){
-  const time=Date.parse(value||"");
-  return Number.isFinite(time)?new Date(time).toLocaleString("zh-CN",{hour12:false}):"—";
-}
-function changesSince(month,revision){
-  const current=Number(month.revision||0), received=Number(revision||0);
-  const changes=(month.changeLog||[]).filter(change=>Number(change.revision)>received&&Number(change.revision)<=current);
-  const firstRecorded=changes.length?Math.min(...changes.map(change=>Number(change.revision))):Infinity;
-  const out=[];
-  if(received+1<firstRecorded) out.push({revision:`v${received+1}–v${Math.min(current,firstRecorded-1)}`,label:"早期变更未记录详情"});
-  changes.forEach(change=>out.push({revision:`v${Number(change.revision)}`,label:change.label,at:change.at,details:Array.isArray(change.details)?change.details:[]}));
-  return out;
-}
-function renderCopyBanner(){
-  const m=ledger.months[activeMonth];
-  const child=childMonthOf(activeMonth);
-  if(!child||!needsChildSync(activeMonth,child)) return "";
-  const next=ledger.months[child];
-  const changes=changesSince(m,next.sourceRevision);
-  const changeHtml=changes.length
-    ? `<ul class="sync-changes">${changes.slice(-12).map(change=>`<li><b>${escapeHTML(change.revision)}</b>　${escapeHTML(change.label)}${change.at?` <span class="mut">${escapeHTML(monthTimeText(change.at))}</span>`:""}${change.details?.length?`<ul class="sync-change-details">${change.details.map(detail=>`<li>${escapeHTML(detail)}</li>`).join("")}</ul>`:""}</li>`).join("")}${changes.length>12?`<li class="mut">另有 ${changes.length-12} 项较早修改</li>`:""}</ul>`
-    : `<p class="mut" style="margin:8px 0 0">未找到可读的变更摘要；同步后将开始记录。</p>`;
-  return `<details class="reconcile-status warn"><summary><i class="status-dot"></i><span class="status-label">后续月份待同步</span><span class="status-detail">${child} 期初待更新</span></summary>
-    <div class="status-content">自 ${child} 上次接收 ${activeMonth} 的版本后，发生以下修改：
-      ${changeHtml}
-      <br>本月：创建于 ${monthTimeText(m.createdAt)}；最后修改 ${monthTimeText(m.updatedAt)}
-      <br>${child}：创建于 ${monthTimeText(next.createdAt)}；最后修改 ${monthTimeText(next.updatedAt)}；已接收来源版本 ${Number(next.sourceRevision||0)} / 当前来源版本 ${Number(m.revision||0)}
-      <div class="sync-row"><button class="mini" id="btnSyncNext">同步到下月</button><button class="mini" id="btnSyncAll">同步到后续所有月份</button></div></div></details>`;
-}
-function renderMonthMeta(){
-  const m=ledger.months[activeMonth];
-  const relation=m.copiedFrom?`继承自 ${escapeHTML(m.copiedFrom)}（来源版本 ${Number(m.sourceRevision||0)}）`:"独立创建";
-  return `<div class="month-meta mut">创建：${monthTimeText(m.createdAt)}　最后修改：${monthTimeText(m.updatedAt)}　${relation}</div>`;
-}
-
-function renderFlowSummary(){
-  const {inflow,outflow,net,detail}=cashFlowTotals(activeMonth);
-  return `<div class="cashflow">
-    <div class="cf-main">
-      <div class="cf-item in"><span class="cf-lbl">现金流入</span><span class="cf-val num">+${amount(inflow)}</span>
-        <span class="cf-sub mut">现金收入 ${fmt(detail.income)} · 资产收益 ${fmt(detail.dividend)} · 卖出 ${fmt(detail.sell)}${detail.nonCashIncome?` · 非现金收入 ${fmt(detail.nonCashIncome)}（不计现金流）`:""}</span></div>
-      <div class="cf-arrow">→</div>
-      <div class="cf-item out"><span class="cf-lbl">现金流出</span><span class="cf-val num">-${amount(outflow)}</span>
-        <span class="cf-sub mut">支出 ${fmt(detail.expense)} · 买入 ${fmt(detail.buy)} · 还款 ${fmt(detail.repay)}</span></div>
-      <div class="cf-arrow">=</div>
-      <div class="cf-item net"><span class="cf-lbl">净现金流</span>
-        <span class="cf-val num ${net<0?"neg":"pos"}">${net>=0?"+":""}${amount(net)}</span>
-        <span class="cf-sub mut">内部转账 ${fmt(detail.transfer)}（不计净额）</span></div>
-    </div>
-  </div>`;
-}
-function renderFlowRows(){
-  const m=ledger.months[activeMonth];
-  if(!m.flows || !m.flows.length)
-    return `<tr><td colspan="7" class="empty">本月暂无流水，点「＋ 添加流水」开始。</td></tr>`;
-  const sorted = m.flows.map((f,i)=>({f,i})).sort((a,b)=>(a.f.date||"").localeCompare(b.f.date||""));
-  return sorted.map(({f,i})=>{
-    const ft=FLOW_TYPES[f.kind];
-    const fromTxt = escapeHTML(f.fromAssetId ? assetLabel(f.fromAssetId) : (f.fromText||"-"));
-    const toTxt   = escapeHTML(f.toAssetId ? assetLabel(f.toAssetId) : (f.toText||"-"));
-    let amt = moneyCell(f.amount,f.currency||"CNY");
-    if(f.kind==="dividend" && f.holdingAmount!=null && f.holdingCurrency && f.holdingCurrency!==f.currency)
-      amt = moneyCell(f.holdingAmount,f.holdingCurrency) + ' <span class="mut">→</span> ' + amt;
-    if(f.qty!=null&&f.price!=null) amt += ` <span class="mut">(${fmtQuantity(f.qty)} × ${fmtPrice(f.price)})</span>`;
-    const typeCell = escapeHTML(ft?ft.name:f.kind) + (f.subcat?` <span class="mut">/${escapeHTML(f.subcat)}</span>`:"");
-    const direction=(f.kind==="income"||f.kind==="dividend"||f.kind==="sell")?"flow-in":((f.kind==="expense"||f.kind==="buy"||f.kind==="repay")?"flow-out":"");
-    return `<tr>
-      <td>${escapeHTML(f.date||"-")}</td>
-      <td class="${direction}">${typeCell}</td>
-      <td>${fromTxt}<span class="flow-route-mobile">→ ${toTxt}</span></td>
-      <td>${toTxt}</td>
-      <td class="num ${direction}">${amt}</td>
-      <td>${escapeHTML(f.note||"")}</td>
-      <td class="ops"><button class="mini" data-fedit="${escapeAttr(f.id)}">编辑</button><button class="mini danger" data-fdel="${escapeAttr(f.id)}">删</button></td>
-    </tr>`;
-  }).join("");
-}
-
-function renderFxBar(){
-  const curs = usedCurrencies();
-  const items = curs.map(c=>{
-    const st=(curFx()._status&&curFx()._status[c]);
-    const badge = c==="CNY" ? "" : (st==="ok"?`<span class="badge ok" title="已自动获取 ${escapeAttr(curFx()._date||"")}">✓</span>`
-                  : (st==="warn"?`<span class="badge warn" title="自动获取失败,请手动填写">❗</span>`:""));
-    return `<label class="fx">${escapeHTML(c)}
-      <input type="number" step="0.0001" data-fx="${escapeAttr(c)}" value="${fxRate(c)}" ${c==="CNY"?"disabled":""} style="width:90px" />${badge}
-    </label>`;
-  }).join("");
-  return `<div class="fxbar"><span class="mut">本月汇率（→ 人民币，默认1，仅本月生效）：</span>${items}
-    <button class="mini" id="btnAutoFx" title="按当月末/最近交易日自动获取汇率">↻ 自动获取汇率</button></div>`;
-}
-function bindFxBar(){
-  document.querySelectorAll("[data-fx]").forEach(inp=>{
-    inp.addEventListener("change",async()=>{
-      const value=Number(inp.value);
-      if(!Number.isFinite(value)||value<=0){ alert("请输入大于 0 的汇率"); return; }
-      await transact("手动更新汇率",()=>{
-        curFx()[inp.dataset.fx]=value;
-        if(curFx()._status) curFx()._status[inp.dataset.fx]="manual";
-      });
-    });
-  });
-  const b=$("btnAutoFx"); if(b) b.addEventListener("click",autoFetchFx);
-}
-// 自动获取当月汇率(Frankfurter, 免key, 支持历史)。目标日=当月末与今天取较早者
-async function autoFetchFx(){
-  const curs=usedCurrencies().filter(c=>c!=="CNY");
-  if(!curs.length){ setStatus("本月没有需要换算的外币"); return; }
-  const dateStr=ymd(targetDate(activeMonth));
-  const symbols=[...new Set([...curs,"CNY"])].filter(c=>c!=="USD").join(",");
-  setStatus("获取汇率中…");
+async function openFromFile(){
+  if(!HAS_FS){ $("fallbackJsonInput").click(); return; }
   try{
-    const res=await fetch(`https://api.frankfurter.dev/v1/${dateStr}?base=USD&symbols=${symbols}`);
-    const data=await res.json();
-    const usdTo=data.rates||{};
-    const usdToCNY=usdTo.CNY;
-    if(!(usdToCNY>0)) throw new Error("无CNY汇率");
-    const updates={}, statuses={};
-    curs.forEach(c=>{
-      if(c==="CNY") return;
-      if(c==="USD"){ updates.USD=Math.round(usdToCNY*1000)/1000; statuses.USD="ok"; return; }
-      const usdToX=usdTo[c];
-      if(usdToX>0){ updates[c]=Math.round(usdToCNY/usdToX*1000)/1000; statuses[c]="ok"; }
-      else statuses[c]="warn";
-    });
-    const ok=await transact("更新汇率",()=>{ const fx=curFx(); fx._status={...(fx._status||{}),...statuses}; fx._date=data.date||dateStr; Object.assign(fx,updates,{CNY:1}); });
-    if(ok) setStatus(`汇率已按 ${data.date||dateStr} 更新`);
+    const opts={
+      id:"family-ledger-open",
+      types:[{description:"账本 JSON",accept:{"application/json":[".json"]}}]
+    };
+    // 有当前账本时从其所在目录开始；否则由浏览器恢复上次导入目录。
+    if(fileHandle) opts.startIn=fileHandle;
+    const [h] = await window.showOpenFilePicker(opts);
+    if(!(await verifyPermission(h,true))){ alert("未授予文件读写权限"); return; }
+    await useHandle(h,{isNew:false});
+    setStatus("已打开账本: "+ledger.name);
+  }catch(e){ if(e.name!=="AbortError") alert("打开失败: "+e.message); }
+}
+
+async function importFallbackFile(file){
+  try{
+    let obj=JSON.parse(await file.text());
+    let nextEncryptionKey=null, nextEncryptionMeta=null;
+    if(obj.schema==="nimble-ledger-encrypted-v1"){
+      const password=await requestPassword({title:`打开加密账本：${file.name}`,hint:"请输入此账本的密码以解锁本地 JSON"});
+      if(password==null) return;
+      const unlocked=await unlockLedger(obj,password);
+      obj=unlocked.data; nextEncryptionKey=unlocked.key; nextEncryptionMeta=unlocked.meta;
+    }
+    const nextLedger=migrateLedger(obj);
+    ledger=nextLedger; encryptionKey=nextEncryptionKey; encryptionMeta=nextEncryptionMeta;
+    fileHandle=null; directoryHandle=null; demoMode=false; activeMonth=null; balanceEditMode=false; flowEditMode=false;
+    renderAll();
+    setStatus(`已导入 ${file.name}；请使用「备份」下载编辑后的 JSON`);
+  }catch(e){ alert("导入失败: "+e.message); }
+}
+
+async function loadDemoLedger(){
+  try{
+    const res=await fetch(new URL("./demo-ledger.json",location.href),{cache:"no-store"});
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const obj=await res.json();
+    ledger=migrateLedger(obj); fileHandle=null; directoryHandle=null; encryptionKey=null; encryptionMeta=null;
+    demoMode=true; activeMonth=Object.keys(obj.months).sort().at(-1)||null; balanceEditMode=false; flowEditMode=false;
+    renderAll();
+    setStatus("正在体验示例账本；编辑后请下载示例副本或新建自己的账本");
+    return true;
   }catch(e){
-    const recorded=await transact("记录汇率获取失败",()=>{ const fx=curFx(); fx._status=fx._status||{}; curs.forEach(c=>fx._status[c]="warn"); });
-    if(recorded) setStatus("汇率自动获取失败: "+e.message+"（请手动填写）");
+    console.warn("示例账本加载失败",e);
+    return false;
   }
 }
 
-// ---------- 资产录入/编辑对话框 ----------
-function openAssetDialog(editIdx){
-  const m = ledger.months[activeMonth];
-  refreshAssetSuggestions();
-  const editing = editIdx!=null;
-  const r = editing ? m.balance[editIdx] : {cls:"stock",currency:"CNY",auto:false};
-  const dlg = $("assetDialog");
-  $("assetDlgTitle").textContent = editing ? "编辑资产详情" : "添加资产";
-  $("adCls").value = r.cls||"stock";
-  $("adGroup").value = r.group||"";
-  $("adName").value = r.name||"";
-  $("adAccount").value = r.account||"";
-  $("adQty").value = r.qty!=null?r.qty:"";
-  $("adPrice").value = r.price!=null?r.price:"";
-  $("adValue").value = r.value!=null?r.value:"";
-  $("adCurrency").value = r.currency||"CNY";
-  $("adAuto").checked = !!r.auto;
-  $("adMarket").value = r.market||"";
-  $("adSymbol").value = r.symbol||"";
-  dlg.dataset.edit = editing ? editIdx : "";
-  delete dlg.dataset.priceOnly;
-  applyAssetFields();
-  dlg.hidden=false;
+// ---------- 账本管理 ----------
+async function switchLedger(name){
+  if(!name || name===ledger?.name) return;
+  const h=registry[name];
+  if(!h){ alert("找不到该账本的文件句柄，请重新打开 JSON 文件"); renderLedgerManager(); return; }
+  try{
+    if(!(await verifyPermission(h,true))){ alert("未授予文件读写权限"); renderLedgerManager(); return; }
+    await useHandle(h,{isNew:false});
+    setStatus("已切换到: "+name);
+    $("ledgerManagerDialog").hidden=true;
+  }catch(e){ alert("切换失败: "+e.message); renderLedgerManager(); }
 }
-function openPriceEditor(editIdx){
-  openAssetDialog(editIdx);
-  const dlg=$("assetDialog"), row=ledger.months[activeMonth]?.balance?.[editIdx];
-  if(!row) return;
-  dlg.dataset.priceOnly="1";
-  $("assetDlgTitle").textContent=row.cls==="stock"?"修改价格":"修改估值";
-  applyAssetFields();
-  const input=$(row.cls==="stock"?"adPrice":"adValue");
-  requestAnimationFrame(()=>{ input?.focus(); input?.select(); });
+function openCreateDialog(){
+  $("newName").value="";
+  $("newPassword").value=""; $("newPasswordConfirm").value="";
+  $("fsUnsupported").hidden = HAS_FS;
+  $("createDialog").hidden=false;
 }
-// 根据大类显示/隐藏字段
-function applyAssetFields(){
-  const cls = ASSET_CLASSES[$("adCls").value];
-  const show=(id,on)=>{ $(id).style.display = on?"":"none"; };
-  show("f-account", cls.hasAccount);
-  show("f-qty", cls.hasQty);
-  show("f-price", cls.hasQty);      // 股票用 数量+价格
-  show("f-value", !cls.hasQty);     // 其它用 直接金额
-  show("f-auto", cls.hasAuto);
-  const autoOn = cls.hasAuto && $("adAuto").checked;
-  show("f-market", autoOn);
-  show("f-symbol", autoOn);
-  $("f-value").querySelector("span").textContent = ($("adCls").value==="liability"||$("adCls").value==="fixed")
-    ? "金额/价值(原币)" : "金额(原币)";
-  const editing=!!$("assetDialog").dataset.edit;
-  const priceOnly=$("assetDialog").dataset.priceOnly==="1";
-  ["adCls","adName","adAccount","adCurrency","adQty"].forEach(id=>$(id).disabled=editing);
-  $("adGroup").disabled=priceOnly;
-  $("adAuto").disabled=priceOnly||!cls.hasAuto;
-  $("adMarket").disabled=priceOnly||!autoOn;
-  $("adSymbol").disabled=priceOnly||!autoOn;
+async function removeLedgerRecord(name){
+  if(!registry[name]) return;
+  if(!confirm(`删除账本「${name}」的本机记录？\n不会删除磁盘上的 JSON 文件。`)) return;
+  const isCurrent=ledger?.name===name;
+  delete registry[name]; await idbDel(name);
+  if(isCurrent){
+    ledger=null; fileHandle=null; directoryHandle=null; demoMode=false; activeMonth=null; balanceEditMode=false; flowEditMode=false;
+    encryptionKey=null; encryptionMeta=null;
+    localStorage.removeItem(LS_ACTIVE);
+  }
+  await idbDel(`dir:${name}`);
+  renderAll();
+  if(isCurrent && /^https?:$/.test(location.protocol) && !Object.keys(registry).length && await loadDemoLedger()) return;
+  setStatus(isCurrent?`已关闭并移除账本记录: ${name}`:`已移除账本记录: ${name}`);
 }
-$("adCls").addEventListener("change",applyAssetFields);
-$("adAuto").addEventListener("change",applyAssetFields);
-$("btnAssetCancel").addEventListener("click",()=>{ $("assetDialog").hidden=true; });
-$("btnAssetOk").addEventListener("click",async()=>{
-  const m = ledger.months[activeMonth];
-  const idx = $("assetDialog").dataset.edit;
-  if(idx!==""){
-    const row=m.balance[+idx];
-    if(!row) return;
-    const isStock=row.cls==="stock";
-    const nextPrice=isStock?Number($("adPrice").value):Number($("adValue").value);
-    if(!Number.isFinite(nextPrice)||nextPrice<0){ alert("请输入不小于 0 的价格或估值"); return; }
-    if(isStock&&$("adAuto").checked&&!textValue($("adSymbol").value,30)){ alert("开启自动更新时必须填写股票代码"); return; }
-    const ok=await transact(`更新资产：${row.name||"未命名资产"}`,()=>{
-      row.group=textValue($("adGroup").value,80)||"未分组";
-      const priceChanged=isStock ? nextPrice!==Number(row.price||0) : nextPrice!==Number(row.value||0);
-      if(isStock){
-        const quoteChanged=row.auto!==$("adAuto").checked||row.market!==textValue($("adMarket").value,16)||row.symbol!==textValue($("adSymbol").value,30);
-        row.price=nextPrice;
-        row.auto=$("adAuto").checked;
-        if(row.auto){ row.market=textValue($("adMarket").value,16); row.symbol=textValue($("adSymbol").value,30); }
-        else { row.priceStatus=null; row.market=""; row.symbol=""; }
-        if(quoteChanged&&m.openingPrices) delete m.openingPrices[row.id];
-        if(priceChanged){ row.manualPriceAt=activeMonth; if(row.auto) row.priceStatus="manual"; }
-      }else{
-        row.value=nextPrice;
-        if(row.cls==="fund"||row.cls==="fixed") row.manualPriceAt=activeMonth;
-      }
-    });
-    if(ok) $("assetDialog").hidden=true;
+async function renameCurrentLedger(){
+  if(!ledger) return;
+  const oldName=ledger.name;
+  const name=(prompt("账本名称（不会修改磁盘文件名）:",oldName)||"").trim();
+  if(!name||name===oldName) return;
+  if(registry[name]){ alert("已有同名账本，请使用其他名称"); return; }
+  ledger.name=name;
+  try{
+    if(fileHandle) await persist();
+  }catch(error){
+    ledger.name=oldName;
+    renderAll();
+    alert("重命名失败，原名称已保留："+error.message);
     return;
   }
-  const cls = ASSET_CLASSES[$("adCls").value];
-  const row = {
-    cls: $("adCls").value,
-    group: textValue($("adGroup").value,80)||"未分组",
-    name: textValue($("adName").value,80),
-    account: cls.hasAccount ? textValue($("adAccount").value,80) : "",
-    currency: textValue($("adCurrency").value,12)||"CNY",
-  };
-  if(!row.name){ alert("请填写项目名称"); return; }
-  if(cls.hasQty){
-    row.qty = Number($("adQty").value);
-    row.price = Number($("adPrice").value);
-    if(!Number.isFinite(row.qty)||!Number.isFinite(row.price)||row.qty<0||row.price<0){ alert("数量和价格不能小于 0"); return; }
-    row.auto = cls.hasAuto && $("adAuto").checked;
-    if(row.auto){
-      row.market=textValue($("adMarket").value,16); row.symbol=textValue($("adSymbol").value,30);
-      if(!row.symbol){ alert("开启自动更新时必须填写股票代码"); return; }
-    }
-    else { row.priceStatus=null; row.market=""; row.symbol=""; }  // 手动价: 不显示自动状态标识
-    row.manualPriceAt = row.auto ? null : activeMonth;
-  }else{
-    row.value = Number($("adValue").value)||0;
-    row.manualPriceAt = (row.cls==="fund"||row.cls==="fixed") ? activeMonth : null;
+  delete registry[oldName]; await idbDel(oldName); await idbDel(`dir:${oldName}`);
+  if(fileHandle){
+    registry[name]=fileHandle; await idbSet(name,fileHandle);
+    if(directoryHandle) await idbSet(`dir:${name}`,directoryHandle);
   }
-  // 确保货币进入当月汇率表
-  row.costBasisCNY=Math.abs((row.cls==="stock"?row.qty*row.price:row.value)*fxRate(row.currency));
-  const ok=await transact(`添加资产：${row.name}`,()=>{
-    if(curFx()[row.currency]==null) curFx()[row.currency]=1;
-    row.id=uid("a"); m.balance.push(row);
-  });
-  if(ok) $("assetDialog").hidden=true;
-});
-
-// ---------- 股价自动更新（腾讯；美股历史报价回退新浪） ----------
-function ymd(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
-// 目标日期: 当月月末与今天取较早者(未到月末→今天)
-function targetDate(monthKey){
-  const [y,mo]=monthKey.split("-").map(Number);
-  const monthEnd=new Date(y,mo,0);
-  const today=new Date();
-  return (monthEnd<today?monthEnd:today);
+  localStorage.setItem(LS_ACTIVE,name);
+  renderAll(); renderLedgerManager();
+  setStatus("已重命名账本: "+name);
 }
-function isCurMonth(monthKey){
-  const now=new Date();
-  return monthKey===now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
-}
-// 从日线数组中挑 <= 目标日 的最后一个交易日, 且必须贴近目标(避免落到远古数据)
-function pickClose(rows, monthKey){
-  const tgt=ymd(targetDate(monthKey));
-  rows=(rows||[]).filter(r=>r.date && !isNaN(r.close));
-  let pick=null;
-  for(const r of rows){ if(r.date<=tgt) pick=r; else break; }
-  if(!pick) throw new Error("目标日期前无交易数据");
-  if(!(pick.close>0)) throw new Error("收盘价无效");
-  const gap=(new Date(tgt)-new Date(pick.date))/86400000;
-  if(gap>10) throw new Error(`最近交易日(${pick.date})距目标(${tgt})过远,数据缺失`);
-  return { price:pick.close, date:pick.date };
-}
-
-function normalizedMarket(market){
-  const raw=String(market||"").trim().toLowerCase().replace(/[\s._-]/g,"");
-  if(["us","usa","美股","美国","美国股票","nasdaq","nyse","amex"].includes(raw)) return "us";
-  if(["hk","港股","香港"].includes(raw)) return "hk";
-  return "cn";
-}
-function normalizedUsSymbol(symbol){
-  return String(symbol||"").trim().toUpperCase()
-    .replace(/^(?:US|NASDAQ|NYSE|AMEX)[:.]/,"")
-    .replace(/\.(?:US|O|N|AM)$/," ").trim();
-}
-// 腾讯代码: A股 sh600519 / sh510500 / 港股 hk00700 / 美股 usAAPL
-function tencentCode(market, symbol){
-  const s=(symbol||"").trim(); const m=normalizedMarket(market);
-  if(m==="hk") return "hk"+s.replace(/\D/g,"").padStart(5,"0");
-  if(m==="us") return "us"+normalizedUsSymbol(s);
-  if(/^(sh|sz)/i.test(s)) return s.toLowerCase();
-  // 沪市除 6 开头股票外，也包括 5 开头 ETF/基金和 9 开头 B 股。
-  return (/^[569]/.test(s)?"sh":"sz")+s;
-}
-function parseTencentQuote(raw,fallbackDate=ymd(new Date())){
-  if(Array.isArray(raw)) raw=raw.join("~");
-  const fields=String(raw||"").split("~");
-  const price=parseFloat(fields[3]);
-  if(!Number.isFinite(price)||price<=0) return null;
-  const quoteDate=(String(raw).match(/\d{4}-\d{2}-\d{2}/)||[])[0]||fallbackDate;
-  return {price,date:quoteDate};
-}
-function quoteNearTarget(quote,monthKey){
-  if(!quote?.date) return false;
-  const target=ymd(targetDate(monthKey));
-  const gap=(new Date(`${target}T00:00:00`)-new Date(`${quote.date}T00:00:00`))/86400000;
-  return gap>=0&&gap<=10;
-}
-// 腾讯实时接口允许跨域读取，直接 fetch 比动态脚本注入更稳定，尤其适用于 PWA。
-async function tencentRealtime(code){
-  const res=await fetch(`https://qt.gtimg.cn/q=${encodeURIComponent(code)}`,{cache:"no-store"});
-  if(!res.ok) throw new Error(`报价接口 HTTP ${res.status}`);
-  const text=await res.text();
-  const raw=text.match(/="([^"]*)"/)?.[1];
-  const quote=parseTencentQuote(raw);
-  if(!quote) throw new Error("无有效实时价格");
-  return {...quote,src:"实时"};
-}
-// 腾讯日K线: 部分美股不提供 day 数组，但会在同一响应里提供最新收盘报价。
-async function tencentKline(code, monthKey){
-  const beg=monthKey+"-01", end=ymd(targetDate(monthKey));
-  const url=`https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},day,${beg},${end},40,bfq`;
-  const res=await fetch(url);
-  if(!res.ok) throw new Error(`腾讯日线 HTTP ${res.status}`);
-  const data=await res.json();
-  const node=data.data && data.data[code];
-  const arr=(node && (node.day||node.qfqday))||[];
-  if(arr.length){
-    const rows=arr.map(r=>({date:r[0], close:parseFloat(r[2])}));
-    return pickClose(rows,monthKey);
-  }
-  const quote=parseTencentQuote(node?.qt?.[code]);
-  if(quoteNearTarget(quote,monthKey)) return {...quote,src:"月末报价"};
-  throw new Error(quote?.date?`日线为空，报价日期 ${quote.date} 不适用于 ${monthKey}`:"腾讯无可用日线或报价");
-}
-// 新浪美股日线使用 JSONP，可在浏览器端跨域读取，作为腾讯未覆盖旧月份时的回退。
-let sinaRequestQueue=Promise.resolve();
-function sinaUsKline(symbol,monthKey){
-  const request=sinaRequestQueue.then(()=>loadSinaUsKline(symbol,monthKey));
-  sinaRequestQueue=request.catch(()=>{});
-  return request;
-}
-function loadSinaUsKline(symbol,monthKey){
-  return new Promise((resolve,reject)=>{
-    const callback="__wealthTrackerSinaData";
-    const script=document.createElement("script");
-    let settled=false;
-    // 新浪脚本通过全局 var 写入数据，该属性在严格模式下不可 delete，只能安全置空。
-    const cleanup=()=>{ clearTimeout(timer); script.remove(); try{ window[callback]=undefined; }catch(error){ /* 全局 var 不可删除，置空失败也不影响报价结果 */ } };
-    const fail=(message,error)=>{ cleanup(); reject(error instanceof Error?error:new Error(message)); };
-    const succeed=rows=>{
-      try{
-        settled=true;
-        cleanup();
-        const parsed=(rows||[]).map(row=>({date:row.d,close:parseFloat(row.c)}));
-        const result={...pickClose(parsed,monthKey),src:"新浪历史收盘"};
-        resolve(result);
-      }catch(error){ fail(`新浪历史报价无效：${error.message}`,error); }
-    };
-    const timer=setTimeout(()=>{ if(!settled) fail("新浪历史报价超时"); },30000);
-    window[callback]=undefined;
-    script.async=true;
-    script.src=`https://stock.finance.sina.com.cn/usstock/api/jsonp.php/var%20${callback}=/US_MinKService.getDailyK?symbol=${encodeURIComponent(normalizedUsSymbol(symbol))}&_=${Date.now()}`;
-    script.onload=()=>{
-      const rows=window[callback];
-      if(!settled) Array.isArray(rows)?succeed(rows):fail("新浪历史报价响应格式无效");
-    };
-    script.onerror=event=>fail("新浪历史报价加载失败",new Error(String(event?.type||"script error")));
-    document.head.appendChild(script);
-  });
-}
-// 综合获取
-async function fetchStockPrice(market, symbol, monthKey){
-  const m=normalizedMarket(market);
-  const code=tencentCode(market, symbol);
-  // 当前月: 直接用实时价(最近交易日)
-  if(isCurMonth(monthKey)){
-    try{ return await tencentRealtime(code); }
-    catch(e){ /* 落到历史逻辑 */ }
-  }
-  // 历史月统一走腾讯。美股在腾讯未覆盖目标月时，回退新浪 JSONP 日线。
-  let out;
-  if(m==="us"){
-    try{ out=await tencentKline(code, monthKey); }
-    catch(tencentError){
-      try{ out=await sinaUsKline(symbol,monthKey); }
-      catch(sinaError){
-        throw new Error(`腾讯：${tencentError.message}；新浪：${sinaError.message}`);
-      }
-    }
-  }else{
-    out=await tencentKline(code, monthKey);
-  }
-  if(!(out && out.price>0)) throw new Error("未获取到有效收盘价");
-  return out;
-}
-async function fetchOpeningPriceBaseline(row,monthKey){
-  if(monthKey!==monthKeys()[0]||row.cls!=="stock"||!row.auto||!row.symbol) return null;
-  const {price,date,src}=await fetchStockPrice(row.market,row.symbol,previousMonthKey(monthKey));
-  return {price,date,src};
-}
-async function fetchStockUpdate(row,monthKey){
-  const {price,date,src}=await fetchStockPrice(row.market,row.symbol,monthKey);
-  if(!(price>0)) throw new Error("价格为0");
-  const baseline=await fetchOpeningPriceBaseline(row,monthKey).catch(()=>null);
-  return {price,date,priceAt:`${date}${src?"("+src+")":""}`,baseline};
-}
-function applyStockUpdate(month,row,result){
-  row.price=result.price;
-  row.priceStatus="ok";
-  row.priceAt=result.priceAt;
-  row.manualPriceAt=null;
-  if(result.baseline) month.openingPrices={...(month.openingPrices||{}),[row.id]:result.baseline};
-}
-async function updateOnePrice(idx){
-  const m=ledger.months[activeMonth]; const r=m.balance[idx];
-  if(!r.auto||!r.symbol){ alert("该条目未配置自动更新"); return; }
-  setStatus(`获取 ${r.symbol} 价格中…`);
-  try{
-    const result=await fetchStockUpdate(r,activeMonth);
-    const ok=await transact(`更新股价：${r.name}`,()=>applyStockUpdate(m,r,result));
-    if(ok) setStatus(`${r.name} 已更新: ${result.price} @ ${result.date}${result.baseline?"；已记录上月底价格基线":""}`);
-  }catch(e){
-    const recorded=await transact(`记录股价获取失败：${r.name}`,()=>{ r.priceStatus="warn"; });
-    if(recorded) setStatus(`${r.name} 自动获取失败(${e.message})，请手动填写`);
-  }
-}
-async function updateAllPrices(){
-  const m=ledger.months[activeMonth];
-  const targets=m.balance.map((r,i)=>({r,i})).filter(x=>x.r.auto&&x.r.symbol);
-  if(!targets.length){ setStatus("本月没有可自动更新的股价条目"); return; }
-  const results=[];
-  for(const {r,i} of targets){
+async function setLedgerPassword(){
+  if(!ledger) return;
+  if(encryptionKey){
+    const oldPassword=await requestPassword({title:`验证当前密码：${ledger.name}`,hint:"修改或取消密码保护前，请先输入当前密码"});
+    if(oldPassword==null) return;
     try{
-      results.push({i,status:"ok",...await fetchStockUpdate(r,activeMonth)});
-    }catch(e){ results.push({i,status:"warn",error:e.message}); }
+      const wrapper=fileHandle ? JSON.parse(await (await fileHandle.getFile()).text()) : await serializeLedger();
+      await unlockLedger(wrapper,oldPassword);
+    }catch(e){ alert("当前密码不正确"); return; }
   }
-  const saved=await transact(`批量更新股价（成功 ${results.filter(result=>result.status==="ok").length}/${targets.length}）`,()=>results.forEach(result=>{
-    const row=m.balance[result.i];
-    if(!row) throw new Error("资产在更新期间已变化");
-    if(result.status==="ok") applyStockUpdate(m,row,result); else row.priceStatus="warn";
-  }));
-  if(!saved) return;
-  const ok=results.filter(x=>x.status==="ok").length;
-  const failed=results.filter(x=>x.status!=="ok");
-  const reason=failed.length?`；失败：${failed.map(x=>`${targets.find(t=>t.i===x.i)?.r.name||"未知资产"}（${x.error||"无返回"}）`).join("；")}`:"";
-  setStatus(`股价更新完成: 成功 ${ok}/${targets.length}${reason}`);
+  const password=await requestPassword({
+    title:`${encryptionKey?"修改密码保护":"设置密码保护"}：${ledger.name}`,
+    hint:encryptionKey?"留空并确认将取消密码保护，账本恢复为明文 JSON。":"可留空以保持明文 JSON。",
+    confirm:true
+  });
+  if(password==null) return;
+  const previousKey=encryptionKey, previousMeta=encryptionMeta;
+  try{
+    if(!password){
+      if(!encryptionKey){ setStatus("账本保持明文存储"); return; }
+      encryptionKey=null; encryptionMeta=null;
+      await persist(); renderLedgerManager();
+      setStatus("已取消密码保护，账本已恢复为明文 JSON");
+      return;
+    }
+    const protectedData=await protectLedger(ledger,password);
+    encryptionKey=protectedData.key; encryptionMeta=protectedData.meta;
+    await persist(); renderLedgerManager();
+    setStatus("已更新账本密码");
+  }catch(e){
+    encryptionKey=previousKey; encryptionMeta=previousMeta;
+    renderLedgerManager();
+    alert("设置密码失败，原密码状态已保留: "+e.message);
+  }
+}
+async function backupCurrentLedger(filename){
+  if(!ledger){ alert("请先打开账本"); return false; }
+  try{
+    const stamp=new Date().toISOString().replace(/[:.]/g,"-");
+    const blob=new Blob([JSON.stringify(await serializeLedger(),null,2)],{type:"application/json"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+    a.download=typeof filename==="string"&&filename?filename:`${ledger.name}_backup_${stamp}.json`; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),0);
+    setStatus("已下载备份: "+a.download);
+    return true;
+  }catch(error){
+    alert("备份失败，未执行后续操作："+(error.message||"无法生成备份文件"));
+    return false;
+  }
 }
 
+// ==================== transactions module ====================
 // ---------- 流水 → 资产负债 联动引擎 ----------
 function flowAmount(f){ return Number(f.amount||0); }  // 保存时已算好(股票=数量×价格; 其它=直填)
 function holdingFlowAmount(f){ return Number(f.holdingAmount!=null?f.holdingAmount:f.amount||0); }
@@ -2634,6 +1944,344 @@ function renderAll(){
   renderStorageInfo();
 }
 
+// ==================== quotes module ====================
+async function autoFetchFx(){
+  const curs=usedCurrencies().filter(c=>c!=="CNY");
+  if(!curs.length){ setStatus("本月没有需要换算的外币"); return; }
+  const dateStr=ymd(targetDate(activeMonth));
+  const symbols=[...new Set([...curs,"CNY"])].filter(c=>c!=="USD").join(",");
+  setStatus("获取汇率中…");
+  try{
+    const res=await fetch(`https://api.frankfurter.dev/v1/${dateStr}?base=USD&symbols=${symbols}`);
+    const data=await res.json();
+    const usdTo=data.rates||{};
+    const usdToCNY=usdTo.CNY;
+    if(!(usdToCNY>0)) throw new Error("无CNY汇率");
+    const updates={}, statuses={};
+    curs.forEach(c=>{
+      if(c==="CNY") return;
+      if(c==="USD"){ updates.USD=Math.round(usdToCNY*1000)/1000; statuses.USD="ok"; return; }
+      const usdToX=usdTo[c];
+      if(usdToX>0){ updates[c]=Math.round(usdToCNY/usdToX*1000)/1000; statuses[c]="ok"; }
+      else statuses[c]="warn";
+    });
+    const ok=await transact("更新汇率",()=>{ const fx=curFx(); fx._status={...(fx._status||{}),...statuses}; fx._date=data.date||dateStr; Object.assign(fx,updates,{CNY:1}); });
+    if(ok) setStatus(`汇率已按 ${data.date||dateStr} 更新`);
+  }catch(e){
+    const recorded=await transact("记录汇率获取失败",()=>{ const fx=curFx(); fx._status=fx._status||{}; curs.forEach(c=>fx._status[c]="warn"); });
+    if(recorded) setStatus("汇率自动获取失败: "+e.message+"（请手动填写）");
+  }
+}
+
+
+// ---------- 股价自动更新（腾讯；美股历史报价回退新浪） ----------
+function ymd(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+// 目标日期: 当月月末与今天取较早者(未到月末→今天)
+function targetDate(monthKey){
+  const [y,mo]=monthKey.split("-").map(Number);
+  const monthEnd=new Date(y,mo,0);
+  const today=new Date();
+  return (monthEnd<today?monthEnd:today);
+}
+function isCurMonth(monthKey){
+  const now=new Date();
+  return monthKey===now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+}
+// 从日线数组中挑 <= 目标日 的最后一个交易日, 且必须贴近目标(避免落到远古数据)
+function pickClose(rows, monthKey){
+  const tgt=ymd(targetDate(monthKey));
+  rows=(rows||[]).filter(r=>r.date && !isNaN(r.close));
+  let pick=null;
+  for(const r of rows){ if(r.date<=tgt) pick=r; else break; }
+  if(!pick) throw new Error("目标日期前无交易数据");
+  if(!(pick.close>0)) throw new Error("收盘价无效");
+  const gap=(new Date(tgt)-new Date(pick.date))/86400000;
+  if(gap>10) throw new Error(`最近交易日(${pick.date})距目标(${tgt})过远,数据缺失`);
+  return { price:pick.close, date:pick.date };
+}
+
+function normalizedMarket(market){
+  const raw=String(market||"").trim().toLowerCase().replace(/[\s._-]/g,"");
+  if(["us","usa","美股","美国","美国股票","nasdaq","nyse","amex"].includes(raw)) return "us";
+  if(["hk","港股","香港"].includes(raw)) return "hk";
+  return "cn";
+}
+function normalizedUsSymbol(symbol){
+  return String(symbol||"").trim().toUpperCase()
+    .replace(/^(?:US|NASDAQ|NYSE|AMEX)[:.]/,"")
+    .replace(/\.(?:US|O|N|AM)$/," ").trim();
+}
+// 腾讯代码: A股 sh600519 / sh510500 / 港股 hk00700 / 美股 usAAPL
+function tencentCode(market, symbol){
+  const s=(symbol||"").trim(); const m=normalizedMarket(market);
+  if(m==="hk") return "hk"+s.replace(/\D/g,"").padStart(5,"0");
+  if(m==="us") return "us"+normalizedUsSymbol(s);
+  if(/^(sh|sz)/i.test(s)) return s.toLowerCase();
+  // 沪市除 6 开头股票外，也包括 5 开头 ETF/基金和 9 开头 B 股。
+  return (/^[569]/.test(s)?"sh":"sz")+s;
+}
+function parseTencentQuote(raw,fallbackDate=ymd(new Date())){
+  if(Array.isArray(raw)) raw=raw.join("~");
+  const fields=String(raw||"").split("~");
+  const price=parseFloat(fields[3]);
+  if(!Number.isFinite(price)||price<=0) return null;
+  const quoteDate=(String(raw).match(/\d{4}-\d{2}-\d{2}/)||[])[0]||fallbackDate;
+  return {price,date:quoteDate};
+}
+function quoteNearTarget(quote,monthKey){
+  if(!quote?.date) return false;
+  const target=ymd(targetDate(monthKey));
+  const gap=(new Date(`${target}T00:00:00`)-new Date(`${quote.date}T00:00:00`))/86400000;
+  return gap>=0&&gap<=10;
+}
+// 腾讯实时接口允许跨域读取，直接 fetch 比动态脚本注入更稳定，尤其适用于 PWA。
+async function tencentRealtime(code){
+  const res=await fetch(`https://qt.gtimg.cn/q=${encodeURIComponent(code)}`,{cache:"no-store"});
+  if(!res.ok) throw new Error(`报价接口 HTTP ${res.status}`);
+  const text=await res.text();
+  const raw=text.match(/="([^"]*)"/)?.[1];
+  const quote=parseTencentQuote(raw);
+  if(!quote) throw new Error("无有效实时价格");
+  return {...quote,src:"实时"};
+}
+// 腾讯日K线: 部分美股不提供 day 数组，但会在同一响应里提供最新收盘报价。
+async function tencentKline(code, monthKey){
+  const beg=monthKey+"-01", end=ymd(targetDate(monthKey));
+  const url=`https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},day,${beg},${end},40,bfq`;
+  const res=await fetch(url);
+  if(!res.ok) throw new Error(`腾讯日线 HTTP ${res.status}`);
+  const data=await res.json();
+  const node=data.data && data.data[code];
+  const arr=(node && (node.day||node.qfqday))||[];
+  if(arr.length){
+    const rows=arr.map(r=>({date:r[0], close:parseFloat(r[2])}));
+    return pickClose(rows,monthKey);
+  }
+  const quote=parseTencentQuote(node?.qt?.[code]);
+  if(quoteNearTarget(quote,monthKey)) return {...quote,src:"月末报价"};
+  throw new Error(quote?.date?`日线为空，报价日期 ${quote.date} 不适用于 ${monthKey}`:"腾讯无可用日线或报价");
+}
+// 新浪美股日线使用 JSONP，可在浏览器端跨域读取，作为腾讯未覆盖旧月份时的回退。
+let sinaRequestQueue=Promise.resolve();
+function sinaUsKline(symbol,monthKey){
+  const request=sinaRequestQueue.then(()=>loadSinaUsKline(symbol,monthKey));
+  sinaRequestQueue=request.catch(()=>{});
+  return request;
+}
+function loadSinaUsKline(symbol,monthKey){
+  return new Promise((resolve,reject)=>{
+    const callback="__wealthTrackerSinaData";
+    const script=document.createElement("script");
+    let settled=false;
+    // 新浪脚本通过全局 var 写入数据，该属性在严格模式下不可 delete，只能安全置空。
+    const cleanup=()=>{ clearTimeout(timer); script.remove(); try{ window[callback]=undefined; }catch(error){ /* 全局 var 不可删除，置空失败也不影响报价结果 */ } };
+    const fail=(message,error)=>{ cleanup(); reject(error instanceof Error?error:new Error(message)); };
+    const succeed=rows=>{
+      try{
+        settled=true;
+        cleanup();
+        const parsed=(rows||[]).map(row=>({date:row.d,close:parseFloat(row.c)}));
+        const result={...pickClose(parsed,monthKey),src:"新浪历史收盘"};
+        resolve(result);
+      }catch(error){ fail(`新浪历史报价无效：${error.message}`,error); }
+    };
+    const timer=setTimeout(()=>{ if(!settled) fail("新浪历史报价超时"); },30000);
+    window[callback]=undefined;
+    script.async=true;
+    script.src=`https://stock.finance.sina.com.cn/usstock/api/jsonp.php/var%20${callback}=/US_MinKService.getDailyK?symbol=${encodeURIComponent(normalizedUsSymbol(symbol))}&_=${Date.now()}`;
+    script.onload=()=>{
+      const rows=window[callback];
+      if(!settled) Array.isArray(rows)?succeed(rows):fail("新浪历史报价响应格式无效");
+    };
+    script.onerror=event=>fail("新浪历史报价加载失败",new Error(String(event?.type||"script error")));
+    document.head.appendChild(script);
+  });
+}
+// 综合获取
+async function fetchStockPrice(market, symbol, monthKey){
+  const m=normalizedMarket(market);
+  const code=tencentCode(market, symbol);
+  // 当前月: 直接用实时价(最近交易日)
+  if(isCurMonth(monthKey)){
+    try{ return await tencentRealtime(code); }
+    catch(e){ /* 落到历史逻辑 */ }
+  }
+  // 历史月统一走腾讯。美股在腾讯未覆盖目标月时，回退新浪 JSONP 日线。
+  let out;
+  if(m==="us"){
+    try{ out=await tencentKline(code, monthKey); }
+    catch(tencentError){
+      try{ out=await sinaUsKline(symbol,monthKey); }
+      catch(sinaError){
+        throw new Error(`腾讯：${tencentError.message}；新浪：${sinaError.message}`);
+      }
+    }
+  }else{
+    out=await tencentKline(code, monthKey);
+  }
+  if(!(out && out.price>0)) throw new Error("未获取到有效收盘价");
+  return out;
+}
+async function fetchOpeningPriceBaseline(row,monthKey){
+  if(monthKey!==monthKeys()[0]||row.cls!=="stock"||!row.auto||!row.symbol) return null;
+  const {price,date,src}=await fetchStockPrice(row.market,row.symbol,previousMonthKey(monthKey));
+  return {price,date,src};
+}
+async function fetchStockUpdate(row,monthKey){
+  const {price,date,src}=await fetchStockPrice(row.market,row.symbol,monthKey);
+  if(!(price>0)) throw new Error("价格为0");
+  const baseline=await fetchOpeningPriceBaseline(row,monthKey).catch(()=>null);
+  return {price,date,priceAt:`${date}${src?"("+src+")":""}`,baseline};
+}
+function applyStockUpdate(month,row,result){
+  row.price=result.price;
+  row.priceStatus="ok";
+  row.priceAt=result.priceAt;
+  row.manualPriceAt=null;
+  if(result.baseline) month.openingPrices={...(month.openingPrices||{}),[row.id]:result.baseline};
+}
+async function updateOnePrice(idx){
+  const m=ledger.months[activeMonth]; const r=m.balance[idx];
+  if(!r.auto||!r.symbol){ alert("该条目未配置自动更新"); return; }
+  setStatus(`获取 ${r.symbol} 价格中…`);
+  try{
+    const result=await fetchStockUpdate(r,activeMonth);
+    const ok=await transact(`更新股价：${r.name}`,()=>applyStockUpdate(m,r,result));
+    if(ok) setStatus(`${r.name} 已更新: ${result.price} @ ${result.date}${result.baseline?"；已记录上月底价格基线":""}`);
+  }catch(e){
+    const recorded=await transact(`记录股价获取失败：${r.name}`,()=>{ r.priceStatus="warn"; });
+    if(recorded) setStatus(`${r.name} 自动获取失败(${e.message})，请手动填写`);
+  }
+}
+async function updateAllPrices(){
+  const m=ledger.months[activeMonth];
+  const targets=m.balance.map((r,i)=>({r,i})).filter(x=>x.r.auto&&x.r.symbol);
+  if(!targets.length){ setStatus("本月没有可自动更新的股价条目"); return; }
+  const results=[];
+  for(const {r,i} of targets){
+    try{
+      results.push({i,status:"ok",...await fetchStockUpdate(r,activeMonth)});
+    }catch(e){ results.push({i,status:"warn",error:e.message}); }
+  }
+  const saved=await transact(`批量更新股价（成功 ${results.filter(result=>result.status==="ok").length}/${targets.length}）`,()=>results.forEach(result=>{
+    const row=m.balance[result.i];
+    if(!row) throw new Error("资产在更新期间已变化");
+    if(result.status==="ok") applyStockUpdate(m,row,result); else row.priceStatus="warn";
+  }));
+  if(!saved) return;
+  const ok=results.filter(x=>x.status==="ok").length;
+  const failed=results.filter(x=>x.status!=="ok");
+  const reason=failed.length?`；失败：${failed.map(x=>`${targets.find(t=>t.i===x.i)?.r.name||"未知资产"}（${x.error||"无返回"}）`).join("；")}`:"";
+  setStatus(`股价更新完成: 成功 ${ok}/${targets.length}${reason}`);
+}
+
+// ==================== trends module ====================
+function contributionGroup(row){
+  const prefix=row.cls==="liability"?"负债":"资产";
+  return prefix+"·"+(row.group||ASSET_CLASSES[row.cls]?.name||"未分组");
+}
+function balanceTotals(balance,fxRates){
+  let net=0, assets=0, liab=0;
+  (balance||[]).forEach(row=>{
+    const sign=ASSET_CLASSES[row.cls]?.sign||1;
+    const rate=Number(fxRates?.[row.currency||"CNY"]||1);
+    const value=rowNative(row)*rate*sign;
+    net+=value; if(value<0) liab+=value; else assets+=value;
+  });
+  return {net,assets,liab};
+}
+// 首月没有真实上月快照时，反向重放流水构造期初。自动报价股票可用保存的上月底价格，
+// 其余资产按“无流水则估值不变”处理。
+function openingBaseline(mKey){
+  const m=ledger.months[mKey];
+  const balance=structuredClone(m?.balance||[]);
+  [...(m?.flows||[])].reverse().forEach(flow=>applyFlowToBalance(balance,flow,-1));
+  balance.forEach(row=>{
+    const price=m?.openingPrices?.[row.id]?.price;
+    if(row.cls==="stock"&&row.auto&&Number.isFinite(Number(price))&&Number(price)>0) row.price=Number(price);
+  });
+  return {balance,fxRates:m?.fxRates||{CNY:1}};
+}
+// 逐资产扣除流水的直接影响：交易按成本/成交额，资产收益归入来源资产，剩余即价格、汇率或手工估值贡献。
+// 该结果同时供月度资产负债表与整体趋势使用，避免两处归因口径不一致。
+function assetProfitAttribution(mKey,prevKey){
+  const m=ledger.months[mKey];
+  if(!m) return {m:mKey,rowPnl:{},entries:[],isBaseline:true};
+  const hasPrevious=Boolean(prevKey&&ledger.months[prevKey]);
+  const prev=hasPrevious?ledger.months[prevKey]:openingBaseline(mKey);
+  const prevFxKey=hasPrevious?prevKey:mKey;
+  const expected={}, expectedNative={}, assetIncome={}, realized={};
+  const addExpected=(assetId,value)=>{ if(assetId) expected[assetId]=(expected[assetId]||0)+value; };
+  const addExpectedNative=(assetId,value)=>{ if(assetId) expectedNative[assetId]=(expectedNative[assetId]||0)+value; };
+  const addAssetIncome=(assetId,value)=>{ if(assetId) assetIncome[assetId]=(assetIncome[assetId]||0)+value; };
+  const addRealized=(assetId,value)=>{ if(assetId) realized[assetId]=(realized[assetId]||0)+value; };
+  (m.flows||[]).forEach(f=>{
+    const value=flowCNY(f,mKey);
+    if(f.kind==="income"){
+      addExpected(f.toAssetId,+value); addExpectedNative(f.toAssetId,+flowAmount(f));
+    }else if(f.kind==="expense"){
+      addExpected(f.fromAssetId,-value); addExpectedNative(f.fromAssetId,-flowAmount(f));
+    }
+    else if(f.kind==="buy"){
+      addExpected(f.fromAssetId,-value); addExpected(f.toAssetId,+value);
+      addExpectedNative(f.fromAssetId,-flowAmount(f));
+      addRealized(f.toAssetId,Number(f.realizedPnlCNY||0));
+    }else if(f.kind==="sell"){
+      addExpected(f.toAssetId,+value); addExpected(f.fromAssetId,-value);
+      addExpectedNative(f.toAssetId,+flowAmount(f));
+      addRealized(f.fromAssetId,Number(f.realizedPnlCNY||0));
+    }else if(f.kind==="dividend"){
+      addExpected(f.toAssetId,+value); addExpectedNative(f.toAssetId,+flowAmount(f)); addAssetIncome(f.fromAssetId,value);
+    }else if(f.kind==="transfer"){
+      addExpected(f.fromAssetId,-value);
+      const toRow=assetByFlow(m,f,"to"), toCurrency=f.toCurrency||toRow?.currency||f.currency||"CNY";
+      const toAmount=Number(f.toAmount!=null?f.toAmount:f.amount||0);
+      addExpected(f.toAssetId,toAmount*fxRate(toCurrency,mKey));
+      addExpectedNative(f.fromAssetId,-flowAmount(f)); addExpectedNative(f.toAssetId,+toAmount);
+    }else if(f.kind==="repay"){
+      addExpected(f.fromAssetId,-value); addExpected(f.toAssetId,+value);
+      addExpectedNative(f.fromAssetId,-flowAmount(f)); addExpectedNative(f.toAssetId,-flowAmount(f));
+    }
+  });
+  const curById=new Map(m.balance.map(row=>[row.id,row]));
+  const prevById=new Map((prev.balance||[]).map(row=>[row.id,row]));
+  const rowPnl={}, entries=[];
+  new Set([...curById.keys(),...prevById.keys()]).forEach(id=>{
+    const current=curById.get(id), previous=prevById.get(id), row=current||previous;
+    const previousValue=previous?rowNative(previous)*fxRate(previous.currency||"CNY",prevFxKey)*(ASSET_CLASSES[previous.cls]?.sign||1):0;
+    const delta=(current?rowCNY(current,mKey):0)-previousValue;
+    const pnl=delta-(expected[id]||0)+(assetIncome[id]||0);
+    const manualAdjustment=row?.cls==="cash"
+      ? ((current?rowNative(current):0)-(previous?rowNative(previous):0)-(expectedNative[id]||0))*fxRate(row.currency||"CNY",mKey)
+      : 0;
+    const fxImpact=row?.cls==="cash"?pnl-(assetIncome[id]||0)-manualAdjustment:0;
+    rowPnl[id]=pnl;
+    entries.push({id,row,pnl,income:assetIncome[id]||0,realized:realized[id]||0,manualAdjustment,fxImpact,unrealized:pnl-(assetIncome[id]||0)-(realized[id]||0)});
+  });
+  return {m:mKey,rowPnl,entries,isBaseline:!hasPrevious};
+}
+function profitAttribution(mKey,prevKey){
+  const hasPrevious=Boolean(prevKey&&ledger.months[prevKey]);
+  const asset=assetProfitAttribution(mKey,prevKey);
+  const deltas={};
+  (ledger.months[mKey]?.flows||[]).forEach(f=>{
+    const value=flowCNY(f,mKey);
+    if(f.kind==="income") deltas["收入"]=(deltas["收入"]||0)+value;
+    else if(f.kind==="expense") deltas["支出"]=(deltas["支出"]||0)-value;
+  });
+  asset.entries.forEach(({row,pnl})=>{
+    const group=contributionGroup(row);
+    deltas[group]=(deltas[group]||0)+pnl;
+  });
+  const opening=hasPrevious?monthTotals(prevKey):balanceTotals(openingBaseline(mKey).balance,ledger.months[mKey]?.fxRates);
+  const netDelta=monthTotals(mKey).net-opening.net;
+  const explained=Object.values(deltas).reduce((sum,value)=>sum+value,0);
+  const residual=netDelta-explained;
+  if(Math.abs(residual)>0.01) deltas["未解释调整"]=residual;
+  return {m:mKey,deltas,netDelta,isBaseline:!hasPrevious};
+}
+
+
 // ================= 趋势区 =================
 let trendState={win:"all", from:null, to:null};
 let trendHiddenGroups=new Set(); // 被隐藏的分组名
@@ -2917,201 +2565,569 @@ $("trendRefresh").addEventListener("click",()=>{
   setStatus("已刷新整体趋势");
 });
 
-
-// ---------- 账本 加载/创建/打开 (严格文件绑定) ----------
-async function verifyPermission(handle, write){
-  const opts={mode: write?"readwrite":"read"};
-  if((await handle.queryPermission(opts))==="granted") return true;
-  if((await handle.requestPermission(opts))==="granted") return true;
-  return false;
+// ==================== ui module ====================
+// ---------- 渲染: 顶部 ----------
+function applyLedgerIdentity(){
+  $("pageTitle").textContent = ledger ? `${APP_NAME} - ${ledger.name}` : APP_NAME;
+  $("brandName").textContent = ledger ? ledger.name : "资产价值追踪";
 }
-async function useHandle(handle, {isNew, directory}={}){
-  let nextLedger=ledger, nextEncryptionKey=encryptionKey, nextEncryptionMeta=encryptionMeta;
-  if(!isNew){
-    const file=await handle.getFile();
-    let obj=JSON.parse(await file.text());
-    nextEncryptionKey=null; nextEncryptionMeta=null;
-    if(obj.schema==="nimble-ledger-encrypted-v1"){
-      const password=await requestPassword({title:`打开加密账本：${file.name}`,hint:"请输入此账本的密码以解锁本地 JSON"});
-      if(password==null){ const e=new Error("已取消输入密码"); e.name="AbortError"; throw e; }
-      const unlocked=await unlockLedger(obj,password);
-      obj=unlocked.data; nextEncryptionKey=unlocked.key; nextEncryptionMeta=unlocked.meta;
+function renderLedgerManager(){
+  const names=Object.keys(registry).sort();
+  $("ledgerManagerCurrent").innerHTML = ledger ? `当前账本：<b>${escapeHTML(ledger.name)}</b>` : "当前未打开账本";
+  $("btnBackup").disabled=!ledger;
+  $("btnManagerRename").disabled=!ledger;
+  $("btnManagerPassword").disabled=!ledger;
+  $("btnManagerPassword").textContent=encryptionKey?"修改密码":"设置密码";
+  $("ledgerManagerList").innerHTML = names.length
+    ? names.map(n=>`<div class="ledger-item"><button class="ledger-switch" data-ledger-switch="${escapeAttr(n)}"><span class="ledger-name">${escapeHTML(n)}</span><span class="ledger-state">${ledger&&n===ledger.name?"当前":"切换"}</span></button><button class="mini danger" data-ledger-remove="${escapeAttr(n)}">删除记录</button></div>`).join("")
+    : `<div class="empty">尚未打开或创建账本</div>`;
+}
+function renderStorageInfo(){
+  if(!ledger){ $("storageInfo").textContent=""; return; }
+  const bytes = new Blob([JSON.stringify(ledger)]).size;
+  const mCount = Object.keys(ledger.months).length;
+  const location = demoMode ? " · 演示模式（未保存）" : (fileHandle ? ` · ${directoryHandle?.name||"本地文件"}` : " · 导入模式");
+  $("storageInfo").textContent = `${mCount} 个月 · ${(bytes/1024).toFixed(1)} KB${location}`;
+}
+
+// ---------- 渲染: 月份 tabs ----------
+function renderMonthTabs(){
+  const nav = $("monthTabs");
+  const keys = monthKeys();
+  if(activeMonth && !ledger.months[activeMonth]) activeMonth=null;
+  if(!activeMonth && keys.length) activeMonth = keys[keys.length-1];
+  const latestKey=keys[keys.length-1];
+  nav.innerHTML = keys.map(k=>{
+    return `
+    <div class="month-tab ${k===activeMonth?"active":""}" data-m="${k}">
+      <span class="lbl">${k}</span>${k===latestKey?`<span class="close" data-del="${k}" title="删除此月（将先下载备份）">✕</span>`:""}</div>`;
+  }).join("") + `<button class="add-tab" id="btnAddMonth">＋ 添加月份</button>`;
+
+  nav.querySelectorAll(".month-tab").forEach(el=>{
+    el.addEventListener("click",()=>{
+      if(activeMonth!==el.dataset.m){ balanceEditMode=false; flowEditMode=false; }
+      activeMonth=el.dataset.m; renderMonthTabs(); renderMonthPanel();
+    });
+  });
+  nav.querySelectorAll(".close").forEach(el=>{
+    el.addEventListener("click",async e=>{
+      e.stopPropagation();
+      const k=el.dataset.del;
+      // 只允许删除最新月
+      if(k!==latestKey){
+        alert(`只允许删除最新月份（${latestKey}）。\n「${k}」是旧月份，无法删除以防止数据链断裂。`);
+        return;
+      }
+      // 检查是否被后续月份依赖（理论上最新月不会被依赖，但保险起见）
+      const hasDep=Object.values(ledger.months).some(m=>m.copiedFrom===k);
+      if(hasDep){
+        alert(`「${k}」被后续月份引用，无法删除。`);
+        return;
+      }
+      if(!confirm(`删除 ${k} 的全部数据？\n⚠️ 将先自动备份当前 JSON 文件，然后删除。`)) return;
+      const backupName=(ledger.name||"ledger").replace(/_ledger_data\.json$/,"")+`_backup_before_del_${k}.json`;
+      if(!(await backupCurrentLedger(backupName))) return;
+      const previousActive=activeMonth;
+      if(activeMonth===k) activeMonth=null;
+      const ok=await transact("删除月份",()=>{ delete ledger.months[k]; },{touch:false});
+      if(!ok) activeMonth=previousActive;
+    });
+  });
+  $("btnAddMonth").addEventListener("click",addMonth);
+  requestAnimationFrame(()=>nav.querySelector(".month-tab.active")?.scrollIntoView({block:"nearest",inline:"nearest"}));
+}
+
+async function addMonth(){
+  const now=new Date();
+  const def = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+  const k = prompt("添加月份 (YYYY-MM):", def);
+  if(!k) return;
+  if(!isValidMonthKey(k)){ alert("请输入有效月份（YYYY-MM）"); return; }
+  if(ledger.months[k]){ balanceEditMode=false; flowEditMode=false; activeMonth=k; renderMonthTabs(); renderMonthPanel(); return; }
+  const month=newMonth();
+  const keys=monthKeys();
+  const next=keys.find(x=>x>k)||null;
+  // 取最近的一个更早月份作为拷贝对象: 拷贝资产负债表 + 汇率, 不拷贝流水
+  const prev = keys.filter(x=>x<k).pop();
+  if(prev){
+    // 拷贝上月资产,但已清仓(数量/金额归零)的持有资产不再带入
+    month.balance = ledger.months[prev].balance
+      .map(r=>{
+        const c={...r};
+        delete c.openedThisMonth;
+        delete c.priceStatus; delete c.priceAt; delete c.manualPriceAt;
+        if(isClosed(c)) c.inactive=true; else delete c.inactive;
+        return c;
+      });
+    month.fxRates = {...(ledger.months[prev].fxRates||{CNY:1})};
+    month.copiedFrom = prev;
+    month.sourceUpdatedAt = ledger.months[prev].updatedAt||month.createdAt;
+    month.sourceRevision=Number(ledger.months[prev].revision||0);
+    month.opening = month.balance.map(r=>({id:r.id,cls:r.cls,name:r.name,qty:r.qty,value:r.value,price:r.price}));
+  }
+  const previousActive=activeMonth; balanceEditMode=false; flowEditMode=false; activeMonth=k;
+  const ok=await transact("添加月份",()=>{
+    ledger.months[k]=month;
+    // 在现有月份之间补建月份时，把原直接子月改为继承新月份，保持单一时间链。
+    if(prev&&next&&ledger.months[next]?.copiedFrom===prev){
+      ledger.months[next].copiedFrom=k;
+      ledger.months[next].sourceRevision=Number(month.revision||0);
+      ledger.months[next].sourceUpdatedAt=month.updatedAt;
     }
-    nextLedger=migrateLedger(obj);
+  },{touch:false});
+  if(!ok) activeMonth=previousActive;
+}
+
+// ---------- 渲染: 月面板 (资产负债表) ----------
+function renderMonthPanel(){
+  const el = $("monthPanel");
+  if(!ledger){ el.innerHTML = `<div class="empty">请先「新建账本」或「打开…」一个账本。</div>`; return; }
+  if(!activeMonth){ el.innerHTML = `<div class="empty">还没有月份，点上方「＋ 添加月份」开始。</div>`; return; }
+  const m = ledger.months[activeMonth];
+  const t = monthTotals(activeMonth);
+  const net = t.net || 0;
+  const prevKey=previousMonthKey(activeMonth);
+  const prevTotals=ledger.months[prevKey] ? monthTotals(prevKey) : null;
+  const cashFlow=cashFlowTotals(activeMonth);
+  const prevCashFlow=prevTotals ? cashFlowTotals(prevKey) : null;
+  // 与整体趋势一致：若中间月份缺失，仍以前一个已存在月份作为盈亏比较基准。
+  const pnlPrevKey=monthKeys().filter(k=>k<activeMonth).pop()||null;
+  const assetPnl=assetProfitAttribution(activeMonth,pnlPrevKey);
+  const manualFields=new Set((reconcile(activeMonth)?.issues||[]).filter(i=>i.id&&i.field).map(i=>`${i.id}:${i.field}`));
+  const metricCard=(label,value,prevValue)=>{
+    const valueClass=value<0?"neg":"";
+    if(prevValue==null) return `<div class="card"><div class="label">${label}</div><div class="value num ${valueClass}">${amount(value)}</div></div>`;
+    const delta=value-prevValue, deltaClass=delta>0?"pos":delta<0?"neg":"";
+    const pct=prevValue===0 ? "—" : `${delta>0?"+":""}${(delta/Math.abs(prevValue)*100).toFixed(1)}%`;
+    return `<div class="card"><div class="label">${label}</div><div class="value num ${valueClass}">${amount(value)}</div>
+      <div class="cf-sub mut">月环比 <span class="num ${deltaClass}">${delta>0?"+":""}${amount(delta)}</span> · <span class="${deltaClass}">${pct}</span></div></div>`;
+  };
+  const pnlCell=(value,id)=>{
+    const tone=value>0?"pos":value<0?"neg":"pnl-zero";
+    const detail=assetPnl.entries.find(entry=>entry.id===id);
+    const title=detail?.row?.cls==="cash"
+      ? `本月盈亏：${fmtFull(value)}\n汇率影响：${fmtFull(detail.fxImpact||0)}\n资产收益：${fmtFull(detail.income||0)}\n余额调整：${fmtFull(detail.manualAdjustment||0)}`
+      : detail?`本月盈亏：${fmtFull(value)}\n已实现：${fmtFull(detail.realized||0)}\n资产收益：${fmtFull(detail.income||0)}\n估值/汇兑：${fmtFull(detail.unrealized||0)}`:`完整本月盈亏：${fmtFull(value)}`;
+    return `<span class="amount ${tone}" title="${escapeAttr(title)}">${value>0?"+":""}${fmtTrend(value)}</span>`;
+  };
+
+  // 按分组聚合
+  const groups = {};
+  const visibleBalance=m.balance.map((r,idx)=>({r,idx})).filter(({r})=>!r.inactive);
+  visibleBalance.forEach(({r,idx})=>{ (groups[r.group||"未分组"] ||= []).push({r,idx}); });
+  // 分组之间按组总金额降序
+  const groupNames = Object.keys(groups).sort((a,b)=>{
+    const sa=groups[a].reduce((s,x)=>s+rowCNY(x.r),0);
+    const sb=groups[b].reduce((s,x)=>s+rowCNY(x.r),0);
+    return sb-sa;
+  });
+  const sortedGroups=groupNames.map(name=>({name,items:groups[name].slice().sort((a,b)=>rowCNY(b.r)-rowCNY(a.r))}));
+
+  let body = "";
+  if(!visibleBalance.length){
+    body = `<tr><td colspan="9" class="empty">本月暂无资产条目，点「＋ 添加资产」开始。</td></tr>`;
+  }else{
+    sortedGroups.forEach(({name:g,items})=>{
+      let gSum=0, gPnl=0, gAssets=0, gLiabs=0;
+      items.forEach(({r})=>{ const value=rowCNY(r); gSum+=value; gPnl+=assetPnl.rowPnl[r.id]||0; if(value>=0) gAssets+=value; else gLiabs+=Math.abs(value); });
+      // 分组标题行
+      body += `<tr class="group-head"><td colspan="9">${escapeHTML(g)}</td></tr>`;
+      // 资产行
+      body += items.map(({r,idx})=>{
+        const cls=ASSET_CLASSES[r.cls]; const cny=rowCNY(r);
+        const pct = cny<0 ? (t.liab?Math.abs(cny/t.liab*100):0) : (t.assets?cny/t.assets*100:0);
+        const pnl=assetPnl.rowPnl[r.id]||0;
+        const manual=field=>manualFields.has(`${r.id}:${field}`)?` <span class="badge manual" title="该字段存在未由流水解释的手动调整">手调</span>`:"";
+        const manualPriceBadge=r.manualPriceAt===activeMonth
+          ? ` <span class="badge manual-ok" title="本月已人工校正">✓</span>`
+          : ` <button type="button" class="badge manual price-status-btn" data-price-edit="${idx}" title="需要人工维护；点击修改价格" aria-label="修改价格">✎</button>`;
+        let priceCell="-";
+        if(r.cls==="stock"){
+          const badge = (r.auto && r.priceStatus==="ok")?`<span class="badge ok" title="已更新 ${escapeAttr(r.priceAt||"")}">✓</span>`
+                     : ((r.auto && r.priceStatus==="warn")?`<button type="button" class="badge warn price-status-btn" data-price-edit="${idx}" title="自动获取失败；点击手动修改价格" aria-label="修改价格">❗</button>`
+                     : ((r.auto&&r.manualPriceAt===activeMonth)?`<span class="badge manual-ok" title="已手动修正">✓</span>`:(r.auto?"":manualPriceBadge)));
+          priceCell=`${moneyCell(r.price,r.currency||"CNY",fmtPrice)} ${badge}`;
+        }else if(!cls.hasQty){
+          priceCell=moneyCell(rowNative(r),r.currency||"CNY")+((r.cls==="fund"||r.cls==="fixed")?manualPriceBadge:"");
+        }
+        const autoBtn = (cls&&cls.hasAuto&&r.auto)
+          ? `<button class="mini icon-btn" data-price="${idx}" title="更新股价：${escapeAttr(r.market||"")}:${escapeAttr(r.symbol||"")}" aria-label="更新股价">↻</button>` : "";
+        return `<tr>
+          <td>${escapeHTML(r.name||"-")}${r.symbol?` <span class="mut">${escapeHTML(r.market||"")}${r.market?":":""}${escapeHTML(r.symbol)}</span>`:""} ${positionBadge(r)}</td>
+          <td>${escapeHTML(cls?cls.name:r.cls)}</td>
+          <td>${escapeHTML(cls&&cls.hasAccount?(r.account||"-"):"-")}</td>
+          <td class="num">${cls&&cls.hasQty?fmtQuantity(r.qty)+manual("qty"):"-"}</td>
+          <td class="num">${priceCell}</td>
+          <td class="num ${cny<0?"neg":""}">${fmtMoney(cny)}${manual("value")}</td>
+          <td class="num mut">${pct.toFixed(1)}%</td>
+          <td class="num">${pnlCell(pnl,r.id)}</td>
+          <td class="ops">${autoBtn}<button class="mini icon-btn" data-edit="${idx}" title="编辑资产与价格" aria-label="编辑资产">✎</button><button class="mini danger icon-btn" data-del="${idx}" title="删除资产" aria-label="删除资产">×</button></td>
+        </tr>`;
+      }).join("");
+      // 分组汇总行
+      const assetShare=t.assets?(gAssets/t.assets*100):0;
+      const liabilityShare=t.liab?(gLiabs/Math.abs(t.liab)*100):0;
+      const gPct = gAssets&&gLiabs
+        ? `资 ${assetShare.toFixed(1)}% · 债 ${liabilityShare.toFixed(1)}%`
+        : `${(gLiabs?liabilityShare:assetShare).toFixed(1)}%`;
+      body += `<tr class="subtotal"><td class="subtotal-label">小计</td><td></td><td></td><td></td><td></td>
+        <td class="num subtotal-amount ${gSum<0?"neg":""}">${fmtMoney(gSum)}</td><td class="num mut subtotal-pct">${gPct}</td><td class="num">${pnlCell(gPnl)}</td><td></td></tr>`;
+    });
   }
-  // 文件解析、密码验证和结构迁移全部成功后，才切换当前运行状态。
-  ledger=nextLedger;
-  encryptionKey=nextEncryptionKey;
-  encryptionMeta=nextEncryptionMeta;
-  fileHandle=handle;
-  directoryHandle=directory||null;
-  demoMode=false;
-  activeMonth=null; balanceEditMode=false; flowEditMode=false;
-  registry[ledger.name]=handle;
-  await idbSet(ledger.name, handle);      // 句柄持久化,便于刷新后重开
-  if(directoryHandle) await idbSet(`dir:${ledger.name}`,directoryHandle);
-  localStorage.setItem(LS_ACTIVE, ledger.name);
-  if(isNew) await persist();
-  renderAll();
+  const mobileBalance = sortedGroups.map(({name:g,items})=>{
+    return `<div class="mobile-group">${escapeHTML(g)}</div>`+items.map(({r,idx})=>{
+      const cls=ASSET_CLASSES[r.cls], cny=rowCNY(r), pct=cny<0?(t.liab?Math.abs(cny/t.liab*100):0):(t.assets?cny/t.assets*100:0);
+      const pnl=assetPnl.rowPnl[r.id]||0;
+      const needsManualPrice=(r.cls==="fund"||r.cls==="fixed")&&r.manualPriceAt!==activeMonth;
+      const failedAutoPrice=r.cls==="stock"&&r.auto&&r.priceStatus==="warn";
+      const priceAction=(needsManualPrice||failedAutoPrice)?` <button type="button" class="badge ${failedAutoPrice?"warn":"manual"} price-status-btn" data-price-edit="${idx}" title="点击修改价格" aria-label="修改价格">${failedAutoPrice?"❗":"✎"}</button>`:"";
+      const price=(cls.hasQty?`${fmtQuantity(r.qty)} × ${fmtPrice(r.price)} ${escapeHTML(r.currency||"CNY")}`:moneyCell(rowNative(r),r.currency||"CNY"))+priceAction;
+      const autoBtn=(cls.hasAuto&&r.auto)?`<button class="mini icon-btn" data-price="${idx}" title="更新股价">↻</button>`:"";
+      return `<article class="mobile-asset"><div class="mobile-title"><span>${escapeHTML(r.name||"-")} ${positionBadge(r)}</span><span class="${cny<0?"neg":""}">${fmtMoney(cny)}</span></div>
+        <div class="mobile-meta"><span>${escapeHTML(cls.name)} · ${escapeHTML(r.account||r.currency||"-")}</span><span>占${pct.toFixed(1)}%</span></div>
+        <div class="mobile-values"><span>${price}</span><span class="${pnl>0?"pos":pnl<0?"neg":""}">本月 ${pnl>0?"+":""}${fmtTrend(pnl)}</span></div>
+        <div class="mobile-ops">${autoBtn}<button class="mini icon-btn" data-edit="${idx}" title="编辑资产与价格">✎</button><button class="mini danger icon-btn" data-del="${idx}" title="删除资产">×</button></div></article>`;
+    }).join("");
+  }).join("");
+
+  el.innerHTML = `
+    ${renderDemoBanner()}
+    ${renderMonthMeta()}
+    ${renderCopyBanner()}
+    <div class="cards metric-cards">
+      ${metricCard("净资产", net, prevTotals?.net)}
+      ${metricCard("总资产", t.assets, prevTotals?.assets)}
+      ${metricCard("总负债", t.liab, prevTotals?.liab)}
+      ${metricCard("净现金流", cashFlow.net, prevCashFlow?.net)}
+    </div>
+    <div class="tbl-head">
+      <h3>资产负债表 · ${activeMonth}</h3>
+      <div>
+        <button class="mini" id="btnUpdateAll" title="批量刷新本月所有可自动更新的股价，并自动获取汇率">↻ 更新股价和汇率</button>
+        <button class="mini" id="btnBalanceEdit">编辑</button>
+        <button class="primary mini" id="btnAddAsset">＋ 添加资产</button>
+      </div>
+    </div>
+    <div class="table-wrap balance-table-wrap"><table class="balance">
+      <thead><tr><th>项目</th><th>类别</th><th>账户</th><th>数量</th><th>价格</th><th>金额(¥)</th><th>占比</th><th>本月盈亏</th><th>操作</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>
+    <div class="balance-mobile">${mobileBalance||`<div class="empty">本月暂无资产条目</div>`}</div>
+    ${renderFxBar()}
+    <div class="tbl-head" style="margin-top:24px">
+      <h3>流水表 · ${activeMonth}</h3>
+      <div><button class="mini" id="btnFlowEdit">编辑</button><button class="primary mini" id="btnAddFlow">＋ 添加流水</button></div>
+    </div>
+    ${renderFlowSummary()}
+    <div class="table-wrap"><table class="flow">
+      <thead><tr><th>日期</th><th>类型</th><th>流出方</th><th>流入方</th><th>金额</th><th>备注</th><th>操作</th></tr></thead>
+      <tbody>${renderFlowRows()}</tbody>
+    </table></div>
+    <p class="hint">收入、资产收益、支出、转账、买入、卖出、还款会自动同步修改上方资产负债表；删除流水会回滚其影响。</p>`;
+
+  // 事件
+  const demoBackup=$("btnDemoBackup"); if(demoBackup) demoBackup.addEventListener("click",()=>backupCurrentLedger());
+  const demoCreate=$("btnDemoCreate"); if(demoCreate) demoCreate.addEventListener("click",openCreateDialog);
+  const setTableEditing=(selector,button,editing)=>{
+    const table=el.querySelector(selector);
+    table.classList.toggle("editing",editing);
+    if(selector===".balance") el.querySelector(".balance-mobile")?.classList.toggle("editing",editing);
+    button.textContent=editing?"完成":"编辑";
+  };
+  setTableEditing(".balance",$("btnBalanceEdit"),balanceEditMode);
+  setTableEditing(".flow",$("btnFlowEdit"),flowEditMode);
+  $("btnBalanceEdit").addEventListener("click",e=>{ balanceEditMode=!balanceEditMode; setTableEditing(".balance",e.currentTarget,balanceEditMode); });
+  $("btnFlowEdit").addEventListener("click",e=>{ flowEditMode=!flowEditMode; setTableEditing(".flow",e.currentTarget,flowEditMode); });
+  $("btnAddAsset").addEventListener("click",()=>openAssetDialog(null));
+  $("btnUpdateAll").addEventListener("click",async()=>{ await updateAllPrices(); await autoFetchFx(); });
+  el.querySelectorAll("[data-edit]").forEach(b=>b.addEventListener("click",()=>openAssetDialog(+b.dataset.edit)));
+  el.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",async()=>{
+    const row=m.balance[+b.dataset.del];
+    if(!row) return;
+    const keys=monthKeys().filter(key=>key>=activeMonth);
+    const related=keys.reduce((count,key)=>count+(ledger.months[key].flows||[]).filter(flow=>flow.fromAssetId===row.id||flow.toAssetId===row.id).length,0);
+    if(!confirm(`删除资产「${row.name}」将影响 ${keys.length} 个月，并删除 ${related} 条相关流水。\n系统会先下载完整备份，是否继续？`)) return;
+    if(!(await backupCurrentLedger())) return;
+    await transact("删除资产",()=>{
+      keys.forEach(key=>{
+        const month=ledger.months[key];
+        const relatedFlows=(month.flows||[]).filter(flow=>flow.fromAssetId===row.id||flow.toAssetId===row.id);
+        // 先回滚流水对现金、负债及其他持仓的影响，再删除资产和流水记录。
+        relatedFlows.forEach(flow=>applyFlowToBalance(month.balance,flow,-1));
+        month.flows=(month.flows||[]).filter(flow=>flow.fromAssetId!==row.id&&flow.toAssetId!==row.id);
+        month.balance=(month.balance||[]).filter(asset=>asset.id!==row.id);
+        if(month.opening) month.opening=month.opening.filter(asset=>asset.id!==row.id);
+        if(month.openingPrices) delete month.openingPrices[row.id];
+        if(key!==activeMonth) markMonthChanged(key,`删除资产：${row.name}及关联流水`);
+      });
+      // 后续月份的期初可能仍带有被删除流水造成的现金影响，沿继承链重建。
+      let source=activeMonth;
+      while(true){
+        const child=childMonthOf(source);
+        if(!child) break;
+        rebuildChildFromParent(source,child);
+        source=child;
+      }
+    });
+  }));
+  el.querySelectorAll("[data-price]").forEach(b=>b.addEventListener("click",()=>updateOnePrice(+b.dataset.price)));
+  el.querySelectorAll("[data-price-edit]").forEach(b=>b.addEventListener("click",()=>openPriceEditor(+b.dataset.priceEdit)));
+  $("btnAddFlow").addEventListener("click",()=>openFlowDialog(null));
+  el.querySelectorAll("[data-fedit]").forEach(b=>b.addEventListener("click",()=>openFlowDialog(b.dataset.fedit)));
+  el.querySelectorAll("[data-fdel]").forEach(b=>b.addEventListener("click",()=>deleteFlow(b.dataset.fdel)));
+  bindFxBar();
+  const bn=$("btnSyncNext"); if(bn) bn.addEventListener("click",()=>{ if(confirm("将本月期末同步为下月期初并重算下月？")) syncToNext(activeMonth); });
+  const ba=$("btnSyncAll"); if(ba) ba.addEventListener("click",()=>{ if(confirm("沿拷贝链把改动同步到后续所有月份并重算？")) syncToAll(activeMonth); });
 }
 
-async function openFromFile(){
-  if(!HAS_FS){ $("fallbackJsonInput").click(); return; }
-  try{
-    const opts={
-      id:"family-ledger-open",
-      types:[{description:"账本 JSON",accept:{"application/json":[".json"]}}]
-    };
-    // 有当前账本时从其所在目录开始；否则由浏览器恢复上次导入目录。
-    if(fileHandle) opts.startIn=fileHandle;
-    const [h] = await window.showOpenFilePicker(opts);
-    if(!(await verifyPermission(h,true))){ alert("未授予文件读写权限"); return; }
-    await useHandle(h,{isNew:false});
-    setStatus("已打开账本: "+ledger.name);
-  }catch(e){ if(e.name!=="AbortError") alert("打开失败: "+e.message); }
+// ---------- 流水表渲染 ----------
+function renderDemoBanner(){
+  if(!demoMode) return "";
+  return `<div class="banner info">当前为示例账本，数据仅在本次浏览器会话中展示，不会自动保存。
+    <button class="mini" id="btnDemoBackup">下载示例副本</button>
+    <button class="mini" id="btnDemoCreate">新建自己的账本</button>
+  </div>`;
+}
+function assetLabel(assetId){
+  const m=ledger.months[activeMonth]; const r=m.balance.find(row=>row.id===assetId);
+  if(!r) return "(已删除)";
+  const acc = r.account? r.account+"·" : "";
+  return acc + (r.name||"");
+}
+// ---------- 月面板顶部: 拷贝来源 + 对账提示 ----------
+function needsChildSync(fromKey,childKey){
+  const parent=ledger.months[fromKey], child=ledger.months[childKey];
+  if(!parent||!child) return false;
+  return Number(parent.revision||0)>Number(child.sourceRevision||0);
+}
+function monthTimeText(value){
+  const time=Date.parse(value||"");
+  return Number.isFinite(time)?new Date(time).toLocaleString("zh-CN",{hour12:false}):"—";
+}
+function changesSince(month,revision){
+  const current=Number(month.revision||0), received=Number(revision||0);
+  const changes=(month.changeLog||[]).filter(change=>Number(change.revision)>received&&Number(change.revision)<=current);
+  const firstRecorded=changes.length?Math.min(...changes.map(change=>Number(change.revision))):Infinity;
+  const out=[];
+  if(received+1<firstRecorded) out.push({revision:`v${received+1}–v${Math.min(current,firstRecorded-1)}`,label:"早期变更未记录详情"});
+  changes.forEach(change=>out.push({revision:`v${Number(change.revision)}`,label:change.label,at:change.at,details:Array.isArray(change.details)?change.details:[]}));
+  return out;
+}
+function renderCopyBanner(){
+  const m=ledger.months[activeMonth];
+  const child=childMonthOf(activeMonth);
+  if(!child||!needsChildSync(activeMonth,child)) return "";
+  const next=ledger.months[child];
+  const changes=changesSince(m,next.sourceRevision);
+  const changeHtml=changes.length
+    ? `<ul class="sync-changes">${changes.slice(-12).map(change=>`<li><b>${escapeHTML(change.revision)}</b>　${escapeHTML(change.label)}${change.at?` <span class="mut">${escapeHTML(monthTimeText(change.at))}</span>`:""}${change.details?.length?`<ul class="sync-change-details">${change.details.map(detail=>`<li>${escapeHTML(detail)}</li>`).join("")}</ul>`:""}</li>`).join("")}${changes.length>12?`<li class="mut">另有 ${changes.length-12} 项较早修改</li>`:""}</ul>`
+    : `<p class="mut" style="margin:8px 0 0">未找到可读的变更摘要；同步后将开始记录。</p>`;
+  return `<details class="reconcile-status warn"><summary><i class="status-dot"></i><span class="status-label">后续月份待同步</span><span class="status-detail">${child} 期初待更新</span></summary>
+    <div class="status-content">自 ${child} 上次接收 ${activeMonth} 的版本后，发生以下修改：
+      ${changeHtml}
+      <br>本月：创建于 ${monthTimeText(m.createdAt)}；最后修改 ${monthTimeText(m.updatedAt)}
+      <br>${child}：创建于 ${monthTimeText(next.createdAt)}；最后修改 ${monthTimeText(next.updatedAt)}；已接收来源版本 ${Number(next.sourceRevision||0)} / 当前来源版本 ${Number(m.revision||0)}
+      <div class="sync-row"><button class="mini" id="btnSyncNext">同步到下月</button><button class="mini" id="btnSyncAll">同步到后续所有月份</button></div></div></details>`;
+}
+function renderMonthMeta(){
+  const m=ledger.months[activeMonth];
+  const relation=m.copiedFrom?`继承自 ${escapeHTML(m.copiedFrom)}（来源版本 ${Number(m.sourceRevision||0)}）`:"独立创建";
+  return `<div class="month-meta mut">创建：${monthTimeText(m.createdAt)}　最后修改：${monthTimeText(m.updatedAt)}　${relation}</div>`;
 }
 
-async function importFallbackFile(file){
-  try{
-    let obj=JSON.parse(await file.text());
-    let nextEncryptionKey=null, nextEncryptionMeta=null;
-    if(obj.schema==="nimble-ledger-encrypted-v1"){
-      const password=await requestPassword({title:`打开加密账本：${file.name}`,hint:"请输入此账本的密码以解锁本地 JSON"});
-      if(password==null) return;
-      const unlocked=await unlockLedger(obj,password);
-      obj=unlocked.data; nextEncryptionKey=unlocked.key; nextEncryptionMeta=unlocked.meta;
-    }
-    const nextLedger=migrateLedger(obj);
-    ledger=nextLedger; encryptionKey=nextEncryptionKey; encryptionMeta=nextEncryptionMeta;
-    fileHandle=null; directoryHandle=null; demoMode=false; activeMonth=null; balanceEditMode=false; flowEditMode=false;
-    renderAll();
-    setStatus(`已导入 ${file.name}；请使用「备份」下载编辑后的 JSON`);
-  }catch(e){ alert("导入失败: "+e.message); }
+function renderFlowSummary(){
+  const {inflow,outflow,net,detail}=cashFlowTotals(activeMonth);
+  return `<div class="cashflow">
+    <div class="cf-main">
+      <div class="cf-item in"><span class="cf-lbl">现金流入</span><span class="cf-val num">+${amount(inflow)}</span>
+        <span class="cf-sub mut">现金收入 ${fmt(detail.income)} · 资产收益 ${fmt(detail.dividend)} · 卖出 ${fmt(detail.sell)}${detail.nonCashIncome?` · 非现金收入 ${fmt(detail.nonCashIncome)}（不计现金流）`:""}</span></div>
+      <div class="cf-arrow">→</div>
+      <div class="cf-item out"><span class="cf-lbl">现金流出</span><span class="cf-val num">-${amount(outflow)}</span>
+        <span class="cf-sub mut">支出 ${fmt(detail.expense)} · 买入 ${fmt(detail.buy)} · 还款 ${fmt(detail.repay)}</span></div>
+      <div class="cf-arrow">=</div>
+      <div class="cf-item net"><span class="cf-lbl">净现金流</span>
+        <span class="cf-val num ${net<0?"neg":"pos"}">${net>=0?"+":""}${amount(net)}</span>
+        <span class="cf-sub mut">内部转账 ${fmt(detail.transfer)}（不计净额）</span></div>
+    </div>
+  </div>`;
+}
+function renderFlowRows(){
+  const m=ledger.months[activeMonth];
+  if(!m.flows || !m.flows.length)
+    return `<tr><td colspan="7" class="empty">本月暂无流水，点「＋ 添加流水」开始。</td></tr>`;
+  const sorted = m.flows.map((f,i)=>({f,i})).sort((a,b)=>(a.f.date||"").localeCompare(b.f.date||""));
+  return sorted.map(({f,i})=>{
+    const ft=FLOW_TYPES[f.kind];
+    const fromTxt = escapeHTML(f.fromAssetId ? assetLabel(f.fromAssetId) : (f.fromText||"-"));
+    const toTxt   = escapeHTML(f.toAssetId ? assetLabel(f.toAssetId) : (f.toText||"-"));
+    let amt = moneyCell(f.amount,f.currency||"CNY");
+    if(f.kind==="dividend" && f.holdingAmount!=null && f.holdingCurrency && f.holdingCurrency!==f.currency)
+      amt = moneyCell(f.holdingAmount,f.holdingCurrency) + ' <span class="mut">→</span> ' + amt;
+    if(f.qty!=null&&f.price!=null) amt += ` <span class="mut">(${fmtQuantity(f.qty)} × ${fmtPrice(f.price)})</span>`;
+    const typeCell = escapeHTML(ft?ft.name:f.kind) + (f.subcat?` <span class="mut">/${escapeHTML(f.subcat)}</span>`:"");
+    const direction=(f.kind==="income"||f.kind==="dividend"||f.kind==="sell")?"flow-in":((f.kind==="expense"||f.kind==="buy"||f.kind==="repay")?"flow-out":"");
+    return `<tr>
+      <td>${escapeHTML(f.date||"-")}</td>
+      <td class="${direction}">${typeCell}</td>
+      <td>${fromTxt}<span class="flow-route-mobile">→ ${toTxt}</span></td>
+      <td>${toTxt}</td>
+      <td class="num ${direction}">${amt}</td>
+      <td>${escapeHTML(f.note||"")}</td>
+      <td class="ops"><button class="mini" data-fedit="${escapeAttr(f.id)}">编辑</button><button class="mini danger" data-fdel="${escapeAttr(f.id)}">删</button></td>
+    </tr>`;
+  }).join("");
 }
 
-async function loadDemoLedger(){
-  try{
-    const res=await fetch(new URL("./demo-ledger.json",location.href),{cache:"no-store"});
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    const obj=await res.json();
-    ledger=migrateLedger(obj); fileHandle=null; directoryHandle=null; encryptionKey=null; encryptionMeta=null;
-    demoMode=true; activeMonth=Object.keys(obj.months).sort().at(-1)||null; balanceEditMode=false; flowEditMode=false;
-    renderAll();
-    setStatus("正在体验示例账本；编辑后请下载示例副本或新建自己的账本");
-    return true;
-  }catch(e){
-    console.warn("示例账本加载失败",e);
-    return false;
-  }
+function renderFxBar(){
+  const curs = usedCurrencies();
+  const items = curs.map(c=>{
+    const st=(curFx()._status&&curFx()._status[c]);
+    const badge = c==="CNY" ? "" : (st==="ok"?`<span class="badge ok" title="已自动获取 ${escapeAttr(curFx()._date||"")}">✓</span>`
+                  : (st==="warn"?`<span class="badge warn" title="自动获取失败,请手动填写">❗</span>`:""));
+    return `<label class="fx">${escapeHTML(c)}
+      <input type="number" step="0.0001" data-fx="${escapeAttr(c)}" value="${fxRate(c)}" ${c==="CNY"?"disabled":""} style="width:90px" />${badge}
+    </label>`;
+  }).join("");
+  return `<div class="fxbar"><span class="mut">本月汇率（→ 人民币，默认1，仅本月生效）：</span>${items}
+    <button class="mini" id="btnAutoFx" title="按当月末/最近交易日自动获取汇率">↻ 自动获取汇率</button></div>`;
 }
+function bindFxBar(){
+  document.querySelectorAll("[data-fx]").forEach(inp=>{
+    inp.addEventListener("change",async()=>{
+      const value=Number(inp.value);
+      if(!Number.isFinite(value)||value<=0){ alert("请输入大于 0 的汇率"); return; }
+      await transact("手动更新汇率",()=>{
+        curFx()[inp.dataset.fx]=value;
+        if(curFx()._status) curFx()._status[inp.dataset.fx]="manual";
+      });
+    });
+  });
+  const b=$("btnAutoFx"); if(b) b.addEventListener("click",autoFetchFx);
+}
+// 自动获取当月汇率(Frankfurter, 免key, 支持历史)。目标日=当月末与今天取较早者
 
-// ---------- 账本管理 ----------
-async function switchLedger(name){
-  if(!name || name===ledger?.name) return;
-  const h=registry[name];
-  if(!h){ alert("找不到该账本的文件句柄，请重新打开 JSON 文件"); renderLedgerManager(); return; }
-  try{
-    if(!(await verifyPermission(h,true))){ alert("未授予文件读写权限"); renderLedgerManager(); return; }
-    await useHandle(h,{isNew:false});
-    setStatus("已切换到: "+name);
-    $("ledgerManagerDialog").hidden=true;
-  }catch(e){ alert("切换失败: "+e.message); renderLedgerManager(); }
+// ---------- 资产录入/编辑对话框 ----------
+function openAssetDialog(editIdx){
+  const m = ledger.months[activeMonth];
+  refreshAssetSuggestions();
+  const editing = editIdx!=null;
+  const r = editing ? m.balance[editIdx] : {cls:"stock",currency:"CNY",auto:false};
+  const dlg = $("assetDialog");
+  $("assetDlgTitle").textContent = editing ? "编辑资产详情" : "添加资产";
+  $("adCls").value = r.cls||"stock";
+  $("adGroup").value = r.group||"";
+  $("adName").value = r.name||"";
+  $("adAccount").value = r.account||"";
+  $("adQty").value = r.qty!=null?r.qty:"";
+  $("adPrice").value = r.price!=null?r.price:"";
+  $("adValue").value = r.value!=null?r.value:"";
+  $("adCurrency").value = r.currency||"CNY";
+  $("adAuto").checked = !!r.auto;
+  $("adMarket").value = r.market||"";
+  $("adSymbol").value = r.symbol||"";
+  dlg.dataset.edit = editing ? editIdx : "";
+  delete dlg.dataset.priceOnly;
+  applyAssetFields();
+  dlg.hidden=false;
 }
-function openCreateDialog(){
-  $("newName").value="";
-  $("newPassword").value=""; $("newPasswordConfirm").value="";
-  $("fsUnsupported").hidden = HAS_FS;
-  $("createDialog").hidden=false;
+function openPriceEditor(editIdx){
+  openAssetDialog(editIdx);
+  const dlg=$("assetDialog"), row=ledger.months[activeMonth]?.balance?.[editIdx];
+  if(!row) return;
+  dlg.dataset.priceOnly="1";
+  $("assetDlgTitle").textContent=row.cls==="stock"?"修改价格":"修改估值";
+  applyAssetFields();
+  const input=$(row.cls==="stock"?"adPrice":"adValue");
+  requestAnimationFrame(()=>{ input?.focus(); input?.select(); });
 }
-async function removeLedgerRecord(name){
-  if(!registry[name]) return;
-  if(!confirm(`删除账本「${name}」的本机记录？\n不会删除磁盘上的 JSON 文件。`)) return;
-  const isCurrent=ledger?.name===name;
-  delete registry[name]; await idbDel(name);
-  if(isCurrent){
-    ledger=null; fileHandle=null; directoryHandle=null; demoMode=false; activeMonth=null; balanceEditMode=false; flowEditMode=false;
-    encryptionKey=null; encryptionMeta=null;
-    localStorage.removeItem(LS_ACTIVE);
-  }
-  await idbDel(`dir:${name}`);
-  renderAll();
-  if(isCurrent && /^https?:$/.test(location.protocol) && !Object.keys(registry).length && await loadDemoLedger()) return;
-  setStatus(isCurrent?`已关闭并移除账本记录: ${name}`:`已移除账本记录: ${name}`);
+// 根据大类显示/隐藏字段
+function applyAssetFields(){
+  const cls = ASSET_CLASSES[$("adCls").value];
+  const show=(id,on)=>{ $(id).style.display = on?"":"none"; };
+  show("f-account", cls.hasAccount);
+  show("f-qty", cls.hasQty);
+  show("f-price", cls.hasQty);      // 股票用 数量+价格
+  show("f-value", !cls.hasQty);     // 其它用 直接金额
+  show("f-auto", cls.hasAuto);
+  const autoOn = cls.hasAuto && $("adAuto").checked;
+  show("f-market", autoOn);
+  show("f-symbol", autoOn);
+  $("f-value").querySelector("span").textContent = ($("adCls").value==="liability"||$("adCls").value==="fixed")
+    ? "金额/价值(原币)" : "金额(原币)";
+  const editing=!!$("assetDialog").dataset.edit;
+  const priceOnly=$("assetDialog").dataset.priceOnly==="1";
+  ["adCls","adName","adAccount","adCurrency","adQty"].forEach(id=>$(id).disabled=editing);
+  $("adGroup").disabled=priceOnly;
+  $("adAuto").disabled=priceOnly||!cls.hasAuto;
+  $("adMarket").disabled=priceOnly||!autoOn;
+  $("adSymbol").disabled=priceOnly||!autoOn;
 }
-async function renameCurrentLedger(){
-  if(!ledger) return;
-  const oldName=ledger.name;
-  const name=(prompt("账本名称（不会修改磁盘文件名）:",oldName)||"").trim();
-  if(!name||name===oldName) return;
-  if(registry[name]){ alert("已有同名账本，请使用其他名称"); return; }
-  ledger.name=name;
-  try{
-    if(fileHandle) await persist();
-  }catch(error){
-    ledger.name=oldName;
-    renderAll();
-    alert("重命名失败，原名称已保留："+error.message);
+$("adCls").addEventListener("change",applyAssetFields);
+$("adAuto").addEventListener("change",applyAssetFields);
+$("btnAssetCancel").addEventListener("click",()=>{ $("assetDialog").hidden=true; });
+$("btnAssetOk").addEventListener("click",async()=>{
+  const m = ledger.months[activeMonth];
+  const idx = $("assetDialog").dataset.edit;
+  if(idx!==""){
+    const row=m.balance[+idx];
+    if(!row) return;
+    const isStock=row.cls==="stock";
+    const nextPrice=isStock?Number($("adPrice").value):Number($("adValue").value);
+    if(!Number.isFinite(nextPrice)||nextPrice<0){ alert("请输入不小于 0 的价格或估值"); return; }
+    if(isStock&&$("adAuto").checked&&!textValue($("adSymbol").value,30)){ alert("开启自动更新时必须填写股票代码"); return; }
+    const ok=await transact(`更新资产：${row.name||"未命名资产"}`,()=>{
+      row.group=textValue($("adGroup").value,80)||"未分组";
+      const priceChanged=isStock ? nextPrice!==Number(row.price||0) : nextPrice!==Number(row.value||0);
+      if(isStock){
+        const quoteChanged=row.auto!==$("adAuto").checked||row.market!==textValue($("adMarket").value,16)||row.symbol!==textValue($("adSymbol").value,30);
+        row.price=nextPrice;
+        row.auto=$("adAuto").checked;
+        if(row.auto){ row.market=textValue($("adMarket").value,16); row.symbol=textValue($("adSymbol").value,30); }
+        else { row.priceStatus=null; row.market=""; row.symbol=""; }
+        if(quoteChanged&&m.openingPrices) delete m.openingPrices[row.id];
+        if(priceChanged){ row.manualPriceAt=activeMonth; if(row.auto) row.priceStatus="manual"; }
+      }else{
+        row.value=nextPrice;
+        if(row.cls==="fund"||row.cls==="fixed") row.manualPriceAt=activeMonth;
+      }
+    });
+    if(ok) $("assetDialog").hidden=true;
     return;
   }
-  delete registry[oldName]; await idbDel(oldName); await idbDel(`dir:${oldName}`);
-  if(fileHandle){
-    registry[name]=fileHandle; await idbSet(name,fileHandle);
-    if(directoryHandle) await idbSet(`dir:${name}`,directoryHandle);
-  }
-  localStorage.setItem(LS_ACTIVE,name);
-  renderAll(); renderLedgerManager();
-  setStatus("已重命名账本: "+name);
-}
-async function setLedgerPassword(){
-  if(!ledger) return;
-  if(encryptionKey){
-    const oldPassword=await requestPassword({title:`验证当前密码：${ledger.name}`,hint:"修改或取消密码保护前，请先输入当前密码"});
-    if(oldPassword==null) return;
-    try{
-      const wrapper=fileHandle ? JSON.parse(await (await fileHandle.getFile()).text()) : await serializeLedger();
-      await unlockLedger(wrapper,oldPassword);
-    }catch(e){ alert("当前密码不正确"); return; }
-  }
-  const password=await requestPassword({
-    title:`${encryptionKey?"修改密码保护":"设置密码保护"}：${ledger.name}`,
-    hint:encryptionKey?"留空并确认将取消密码保护，账本恢复为明文 JSON。":"可留空以保持明文 JSON。",
-    confirm:true
-  });
-  if(password==null) return;
-  const previousKey=encryptionKey, previousMeta=encryptionMeta;
-  try{
-    if(!password){
-      if(!encryptionKey){ setStatus("账本保持明文存储"); return; }
-      encryptionKey=null; encryptionMeta=null;
-      await persist(); renderLedgerManager();
-      setStatus("已取消密码保护，账本已恢复为明文 JSON");
-      return;
+  const cls = ASSET_CLASSES[$("adCls").value];
+  const row = {
+    cls: $("adCls").value,
+    group: textValue($("adGroup").value,80)||"未分组",
+    name: textValue($("adName").value,80),
+    account: cls.hasAccount ? textValue($("adAccount").value,80) : "",
+    currency: textValue($("adCurrency").value,12)||"CNY",
+  };
+  if(!row.name){ alert("请填写项目名称"); return; }
+  if(cls.hasQty){
+    row.qty = Number($("adQty").value);
+    row.price = Number($("adPrice").value);
+    if(!Number.isFinite(row.qty)||!Number.isFinite(row.price)||row.qty<0||row.price<0){ alert("数量和价格不能小于 0"); return; }
+    row.auto = cls.hasAuto && $("adAuto").checked;
+    if(row.auto){
+      row.market=textValue($("adMarket").value,16); row.symbol=textValue($("adSymbol").value,30);
+      if(!row.symbol){ alert("开启自动更新时必须填写股票代码"); return; }
     }
-    const protectedData=await protectLedger(ledger,password);
-    encryptionKey=protectedData.key; encryptionMeta=protectedData.meta;
-    await persist(); renderLedgerManager();
-    setStatus("已更新账本密码");
-  }catch(e){
-    encryptionKey=previousKey; encryptionMeta=previousMeta;
-    renderLedgerManager();
-    alert("设置密码失败，原密码状态已保留: "+e.message);
+    else { row.priceStatus=null; row.market=""; row.symbol=""; }  // 手动价: 不显示自动状态标识
+    row.manualPriceAt = row.auto ? null : activeMonth;
+  }else{
+    row.value = Number($("adValue").value)||0;
+    row.manualPriceAt = (row.cls==="fund"||row.cls==="fixed") ? activeMonth : null;
   }
-}
-async function backupCurrentLedger(filename){
-  if(!ledger){ alert("请先打开账本"); return false; }
-  try{
-    const stamp=new Date().toISOString().replace(/[:.]/g,"-");
-    const blob=new Blob([JSON.stringify(await serializeLedger(),null,2)],{type:"application/json"});
-    const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-    a.download=typeof filename==="string"&&filename?filename:`${ledger.name}_backup_${stamp}.json`; a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),0);
-    setStatus("已下载备份: "+a.download);
-    return true;
-  }catch(error){
-    alert("备份失败，未执行后续操作："+(error.message||"无法生成备份文件"));
-    return false;
-  }
-}
+  // 确保货币进入当月汇率表
+  row.costBasisCNY=Math.abs((row.cls==="stock"?row.qty*row.price:row.value)*fxRate(row.currency));
+  const ok=await transact(`添加资产：${row.name}`,()=>{
+    if(curFx()[row.currency]==null) curFx()[row.currency]=1;
+    row.id=uid("a"); m.balance.push(row);
+  });
+  if(ok) $("assetDialog").hidden=true;
+});
+
+
 // ---------- 事件绑定 ----------
 $("btnLedgerManager").addEventListener("click",()=>{ renderLedgerManager(); $("ledgerManagerDialog").hidden=false; });
 $("btnBackup").addEventListener("click",()=>backupCurrentLedger());
@@ -3129,6 +3145,7 @@ $("ledgerManagerList").addEventListener("click",e=>{
   const switcher=e.target.closest("[data-ledger-switch]"); if(switcher) switchLedger(switcher.dataset.ledgerSwitch);
 });
 
+// ==================== app module ====================
 // ---------- PWA：仅缓存程序资源，不保存或上传用户账本 ----------
 let deferredInstallPrompt=null;
 function isMobileDevice(){ return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||navigator.maxTouchPoints>1; }
@@ -3142,7 +3159,7 @@ function showInstallGuide(){
 function initPWA(){
   if(isMobileDevice()&&!window.matchMedia("(display-mode: standalone)").matches) $("btnInstallApp").hidden=false;
   if(!window.isSecureContext||!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./service-worker.js?v=20260803-v25",{scope:"./"}).then(reg=>{
+  navigator.serviceWorker.register("./service-worker.js?v=20260803-v26",{scope:"./"}).then(reg=>{
     reg.addEventListener("updatefound",()=>{
       const worker=reg.installing;
       if(!worker) return;

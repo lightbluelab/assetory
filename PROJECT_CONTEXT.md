@@ -6,13 +6,22 @@ Wealth Tracker 是本地优先的月度资产价值追踪工具。它以单个 J
 
 ## 文件与发布
 
-- `index.html`：唯一的本地开发文件和服务器静态入口。单独下载后可按需要重命名为 `wealth_tracker.html`。
+- `src/index.template.html` / `src/styles.css`：页面结构和样式源码。
+- `src/js/core.js`：公共状态、数据模型、迁移和基础计算。
+- `src/js/storage.js`：IndexedDB、加密、文件读写、导入导出和账本管理。
+- `src/js/transactions.js`：流水联动、成本基础、对账和跨月同步。
+- `src/js/quotes.js`：汇率、股价及首月价格基线。
+- `src/js/trends.js`：盈亏归因和趋势图表。
+- `src/js/ui.js`：月度页面、资产/流水表和对话框。
+- `src/js/app.js`：全局事件、PWA 和启动流程。
+- `scripts/build.mjs`：将模板、CSS 和上述模块合并为单文件 `index.html`；无第三方依赖。
+- `assets/images/`：页面、浏览器 Tab 与 PWA 图标。
+- `index.html`：生成后的本地版和服务器静态入口，不应直接编辑。单独下载后可按需要重命名为 `wealth_tracker.html`。
 - `demo-ledger.json`：公开演示账本，六个月数据，可用于基础回归。
-- `wealth_tracker.svg`：页面和浏览器 Tab 图标；`wealth_tracker-180.png`、`wealth_tracker-192.png`、`wealth_tracker-512.png` 是移动端/PWA 高清图标。
 - `manifest.webmanifest` / `service-worker.js`：PWA 安装与离线程序缓存。
 - `README.md`：给普通用户与 AI Agent 的使用说明。
 
-如需部署，可使用任意支持 HTTPS 的静态网站服务。部署域名、服务器地址和站点目录属于使用者自己的环境配置，不应写入或提交到项目上下文。发布时只上传公开程序与演示文件，绝不上传真实账本 JSON。
+修改源码后必须运行 `npm run build`，并用 `npm run check` 确认 `index.html` 未过期。如需部署，可使用任意支持 HTTPS 的静态网站服务。应提交 `assets/`、`src/`、`scripts/`、构建产物和公开说明；不得提交个人账本、备份、`.DS_Store`、`node_modules/`、`.env` 或任何密钥。部署域名、服务器地址和站点目录属于使用者自己的环境配置，不应写入或提交到项目上下文。发布时只上传公开程序与演示文件，绝不上传真实账本 JSON。
 
 ## 数据模型
 
@@ -43,6 +52,7 @@ ledger.months[YYYY-MM]
 7. 本月资产盈亏与收入/支出的净资产贡献不同：资产盈亏用于价格、汇率、买卖成本和资产收益归因；收入/支出在盈亏趋势中单列。归因与净资产变动优先以上一个实际月份的当前期末为比较基准；账本首月没有真实上月时，使用期末反向扣除本月流水得到的期初，其中自动报价股票可用 `openingPrices` 的上月底价格替换期末价格，其余无流水资产估值保持不变。`opening` 只用于同步重建和对账，不能作为归因基准，否则两套期初的差额会落入“未解释调整”。现金盈亏另外拆分汇率影响、资产收益和手工余额调整。
 8. 所有修改应由 `transact()` 自动生成字段级变更明细；同步提示展示余额、数量、价格、汇率和流水去向等具体差异。不得依赖时间戳判断是否需要同步。
 9. JSON 导入对历史流水采用兼容校验：资产引用 ID 必须存在，但不追溯性强制旧流水符合当前的资产类别选择规则。新建非现金收入用 `nonCashIncome: true` 标记，股票数量型收入另用 `incomeAssetMode: "quantity"`；没有这些字段的旧收入保持原余额和现金流口径。
+10. `src/` 是唯一源码，根目录 `index.html` 是构建产物。所有功能修改必须落在对应模块中，再运行构建脚本；禁止只修改生成物，否则下一次构建会覆盖变更。
 
 ## 关键函数
 
@@ -68,7 +78,8 @@ ledger.months[YYYY-MM]
 ## 最低验证
 
 ```sh
-node -e 'const fs=require("fs"); const h=fs.readFileSync("index.html","utf8"); new Function(h.slice(h.lastIndexOf("<script>")+8,h.lastIndexOf("</script>")); console.log("syntax ok")'
+npm run build
+npm run check
 ```
 
 还应检查 `demo-ledger.json` 能被解析，且每条 `fromAssetId` / `toAssetId` 都存在于该月 `balance`。数据计算或同步逻辑改动时，优先用演示账本手工验证买入、卖出、资产收益、删除资产与跨月同步。

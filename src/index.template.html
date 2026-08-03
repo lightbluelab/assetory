@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#faf7f0" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<title id="pageTitle">WEALTH TRACKER</title>
+<link rel="icon" type="image/svg+xml" href="./assets/images/wealth_tracker.svg" />
+<link rel="apple-touch-icon" sizes="180x180" href="./assets/images/wealth_tracker-180.png?v=20260803-v26" />
+<link rel="manifest" href="./manifest.webmanifest?v=20260803-v26" />
+<style>
+/*__INLINE_CSS__*/
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><img class="brand-icon" src="./assets/images/wealth_tracker.svg" alt="" /><div class="brand-copy"><span class="brand-kicker">WEALTH TRACKER</span><span id="brandName">资产价值追踪</span></div></div>
+  <div class="ledger-ctrl">
+    <button id="btnLedgerManager">账本管理</button>
+    <button id="btnBackup" title="下载当前账本的 JSON 备份">备份</button>
+    <button id="btnInstallApp" hidden title="将 Wealth Tracker 添加到设备桌面">添加到桌面</button>
+    <details id="guide" class="guide">
+    <summary>使用说明</summary>
+    <div class="guide-content" id="guideContent"><p class="mut">正在加载 README…</p></div>
+    </details>
+  </div>
+</header>
+
+<main>
+  <section class="trend-area">
+    <div class="trend-head">
+      <h2>整体趋势</h2>
+      <div class="trend-win">
+        <select id="trendWindow">
+          <option value="12">最近12个月</option>
+          <option value="ytd">年初至今</option>
+          <option value="all" selected>全部</option>
+          <option value="custom">自定义…</option>
+        </select>
+        <button class="mini" id="trendRefresh" type="button" title="重新计算并绘制趋势图">刷新趋势</button>
+        <span id="trendCustom" hidden>
+          <input type="month" id="trendFrom" /> ~ <input type="month" id="trendTo" />
+          <button class="mini" id="trendApply">应用</button>
+        </span>
+      </div>
+    </div>
+    <div id="trendSummary" class="trend-summary"></div>
+    <div id="trendCharts"></div>
+  </section>
+
+  <nav class="month-tabs" id="monthTabs"></nav>
+  <section id="monthPanel" class="month-panel"></section>
+</main>
+
+<footer class="statusbar">
+  <span id="status">就绪</span>
+  <span id="storageInfo"></span>
+</footer>
+
+<!-- 新建账本对话框 -->
+<div id="ledgerManagerDialog" class="modal" hidden>
+  <div class="modal-box">
+    <h3>账本管理</h3>
+    <div id="ledgerManagerCurrent" class="manager-current"></div>
+    <div class="manager-actions">
+      <button id="btnManagerCreate" class="primary">＋ 新建</button>
+      <button id="btnManagerOpen">打开 JSON</button>
+      <button id="btnManagerRename">重命名</button>
+      <button id="btnManagerPassword">设置密码</button>
+    </div>
+    <div class="manager-section">
+      <div class="mut">已知账本</div>
+      <div id="ledgerManagerList" class="manager-list"></div>
+    </div>
+    <div class="modal-actions"><button id="btnManagerDone">完成</button></div>
+  </div>
+</div>
+
+<div id="createDialog" class="modal" hidden>
+  <div class="modal-box">
+    <h3>新建账本</h3>
+    <label class="fld">账本名称 <span class="mut">(用作文件名与网页标题)</span>
+      <input id="newName" type="text" placeholder="例如：我家账本" />
+    </label>
+    <div class="grid2">
+      <label class="fld">密码 <span class="mut">(可留空)</span><input id="newPassword" type="password" autocomplete="new-password" /></label>
+      <label class="fld">确认密码 <input id="newPasswordConfirm" type="password" autocomplete="new-password" /></label>
+    </div>
+    <div class="fld">
+      <div class="mut">点「创建」后选择本地目录，网页会在其中新建 JSON 文件；之后所有修改会自动写回该文件。</div>
+      <div id="fsUnsupported" class="banner warn" hidden style="margin-top:10px">
+        当前浏览器不支持本地目录写回。仍可导入 JSON 并在编辑后下载更新版；如需自动保存回原文件，请使用 Chrome 或 Edge 访问 HTTPS 网页。
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="btnCreateCancel">取消</button>
+      <button id="btnCreateOk" class="primary">创建并选择本地目录…</button>
+    </div>
+  </div>
+</div>
+
+<input id="fallbackJsonInput" type="file" accept="application/json,.json" hidden />
+
+<!-- 资产录入/编辑对话框 -->
+<div id="assetDialog" class="modal" hidden>
+  <div class="modal-box">
+    <h3 id="assetDlgTitle">添加资产</h3>
+    <label class="fld">资产大类
+      <select id="adCls">
+        <option value="stock">股票</option>
+        <option value="fund">基金</option>
+        <option value="cash">现金</option>
+        <option value="liability">负债</option>
+        <option value="fixed">固定资产</option>
+      </select>
+    </label>
+    <div class="grid2">
+      <label class="fld">分组 <input id="adGroup" list="assetGroupList" placeholder="如 A股/美股/存款" /></label>
+      <label class="fld">项目 <input id="adName" placeholder="如 贵州茅台" /></label>
+    </div>
+    <div class="grid2">
+      <label class="fld" id="f-account">账户 <input id="adAccount" list="assetAccountList" placeholder="如 招商证券" /></label>
+      <label class="fld">货币
+        <select id="adCurrency">
+          <option value="CNY">人民币 CNY</option>
+          <option value="USD">美元 USD</option>
+          <option value="HKD">港币 HKD</option>
+        </select>
+      </label>
+    </div>
+    <div class="grid2">
+      <label class="fld" id="f-qty">数量 <input id="adQty" type="number" step="any" /></label>
+      <label class="fld" id="f-price">价格(原币) <input id="adPrice" type="number" step="any" /></label>
+    </div>
+    <label class="fld" id="f-value"><span>金额(原币)</span> <input id="adValue" type="number" step="any" /></label>
+    <label class="fld inline" id="f-auto"><input id="adAuto" type="checkbox" /> 自动更新价格（月末收盘价）</label>
+    <div class="grid2">
+      <label class="fld" id="f-market">市场
+        <select id="adMarket">
+          <option value="cn">中国 A股（沪/深）</option>
+          <option value="us">美股</option>
+          <option value="hk">港股</option>
+        </select>
+      </label>
+      <label class="fld" id="f-symbol">股票代码 <input id="adSymbol" placeholder="如 aapl / 600519" /></label>
+    </div>
+    <div class="modal-actions">
+      <button id="btnAssetCancel">取消</button>
+      <button id="btnAssetOk" class="primary">确定</button>
+    </div>
+  </div>
+</div>
+
+<datalist id="assetGroupList"></datalist>
+<datalist id="assetAccountList"></datalist>
+
+<!-- 密码输入对话框：始终使用 password 类型，避免浏览器明文 prompt -->
+<div id="passwordDialog" class="modal" hidden>
+  <div class="modal-box">
+    <h3 id="passwordDlgTitle">账本密码</h3>
+    <p id="passwordDlgHint" class="mut"></p>
+    <label class="fld" id="passwordCurrentWrap" hidden>当前密码 <input id="passwordCurrent" type="password" autocomplete="current-password" /></label>
+    <label class="fld" id="passwordNewWrap">密码 <input id="passwordNew" type="password" autocomplete="new-password" /></label>
+    <label class="fld" id="passwordConfirmWrap" hidden>确认密码 <input id="passwordConfirm" type="password" autocomplete="new-password" /></label>
+    <div class="modal-actions">
+      <button id="btnPasswordCancel">取消</button>
+      <button id="btnPasswordOk" class="primary">确定</button>
+    </div>
+  </div>
+</div>
+
+<div id="installGuideDialog" class="modal" hidden>
+  <div class="modal-box">
+    <h3>添加到桌面</h3>
+    <div id="installGuideContent" class="mut"></div>
+    <div class="modal-actions"><button id="btnInstallGuideDone" class="primary">知道了</button></div>
+  </div>
+</div>
+
+<!-- 流水录入/编辑对话框 -->
+<div id="flowDialog" class="modal" hidden>
+  <div class="modal-box">
+    <h3 id="flowDlgTitle">添加流水</h3>
+    <div class="grid2">
+      <label class="fld">类型
+        <select id="fdKind">
+          <option value="income">收入</option>
+          <option value="dividend">资产收益</option>
+          <option value="expense">支出</option>
+          <option value="transfer">转账</option>
+          <option value="buy">买入</option>
+          <option value="sell">卖出</option>
+          <option value="repay">还款</option>
+        </select>
+      </label>
+      <label class="fld">日期 <input id="fdDate" type="date" /></label>
+    </div>
+    <div class="grid2">
+      <label class="fld"><span id="fdFromLabel">流出方</span> <span id="fd-from-wrap"></span></label>
+      <label class="fld"><span id="fdToLabel">流入方</span> <span id="fd-to-wrap"></span></label>
+    </div>
+    <label class="fld inline" id="fd-liquidate" hidden><input id="fdLiquidate" type="checkbox" /> <span id="fdLiqLabel">清仓（全部卖出当前持仓）</span></label>
+    <label class="fld" id="fd-amount"><span id="fdAmountLabel">金额</span> <input id="fdAmount" type="text" inputmode="decimal" placeholder="支持 1000+200*3" /></label>
+    <div class="grid2" id="fd-qp">
+      <label class="fld">数量 <span class="mut">(负数表示做空/回补)</span><input id="fdQty" type="number" step="any" /></label>
+      <label class="fld">价格 <input id="fdPrice" type="number" step="any" /></label>
+    </div>
+    <label class="fld" id="fd-fx" hidden><span id="fdFxLabel">换汇汇率</span><input id="fdFxRate" type="number" step="any" /></label>
+    <div id="fd-newinv" class="newinv-box">
+      <div class="mut" style="margin-bottom:8px">新建资产（将写入资产负债表）</div>
+      <label class="fld">资产类型
+        <select id="niCls">
+          <option value="stock">股票</option>
+          <option value="fund">基金</option>
+          <option value="cash">现金</option>
+          <option value="fixed">固定资产</option>
+        </select>
+      </label>
+      <div class="grid2">
+        <label class="fld">分组 <input id="niGroup" list="assetGroupList" placeholder="如 A股/美股/房产" /></label>
+        <label class="fld">项目 <input id="niName" placeholder="如 苹果" /></label>
+      </div>
+      <div class="grid2">
+        <label class="fld">账户 <input id="niAccount" list="assetAccountList" placeholder="如 富途" /></label>
+        <label class="fld">货币
+          <select id="niCurrency">
+            <option value="CNY">人民币 CNY</option>
+            <option value="USD">美元 USD</option>
+            <option value="HKD">港币 HKD</option>
+          </select>
+        </label>
+      </div>
+      <div id="ni-stock-only">
+        <label class="fld inline"><input id="niAuto" type="checkbox" /> 自动更新价格</label>
+        <div class="grid2" id="ni-auto-fields">
+          <label class="fld">市场
+            <select id="niMarket"><option value="cn">中国A股</option><option value="us">美股</option><option value="hk">港股</option></select>
+          </label>
+          <label class="fld">股票代码 <input id="niSymbol" placeholder="如 aapl / 600519" /></label>
+        </div>
+      </div>
+    </div>
+    <label class="fld" id="fd-subcat">分类 <input id="fdSubcat" placeholder="如 工资/奖金/旅行/交通" list="subcatList" /></label>
+    <datalist id="subcatList"></datalist>
+    <label class="fld">备注 <input id="fdNote" placeholder="可空" /></label>
+    <div class="modal-actions">
+      <button id="btnFlowCancel">取消</button>
+      <button id="btnFlowOk" class="primary">确定</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/*__INLINE_JS__*/
+</script>
+
+
+</body>
+</html>

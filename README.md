@@ -60,21 +60,45 @@ Wealth Tracker 是用于持续追踪个人或家庭资产价值的小工具。�
 
 手机网页右上角提供“添加到桌面”。支持安装的浏览器会直接弹出安装；Safari 等浏览器会显示“分享 -> 添加到主屏幕”的步骤。手机上无法直接写回文件时，编辑后使用“备份”下载最新 JSON，并保存到系统“文件”或自己的云盘。
 
-## 4. 本地定制与 AI Agent 修改
+## 4. 本地使用与源码开发
 
-如需按自己的习惯定制工具，可下载并把以下文件放在同一文件夹：
-
-```text
-index.html
-README.md
-PROJECT_CONTEXT.md
-demo-ledger.json
-我的账本_ledger_data.json  # 私人文件，请自行保存
-```
+普通使用只需要下载 `index.html`；它已经内联全部样式和脚本，可以直接双击打开，也可以按需要重命名为 `wealth_tracker.html`。
 
 - [下载本地 HTML 版](./index.html)
 - [下载 README](./README.md)
 - [下载演示账本](./demo-ledger.json)
 - [下载 Project Context](./PROJECT_CONTEXT.md)
 
-双击 `index.html` 即可在浏览器中打开本地版；单独下载后可按需要重命名为 `wealth_tracker.html`。将 `index.html`、`PROJECT_CONTEXT.md`、`demo-ledger.json` 和清晰的修改需求交给 AI Agent，即可继续定制。请明确要求 Agent 保持 JSON 兼容、不上传真实账本；涉及流水或跨月同步时，同时检查应用、回滚、同步和对账逻辑。
+项目源码按职责放在 `src/` 中：
+
+```text
+assets/images/             页面和 PWA 图标
+src/index.template.html  页面结构模板
+src/styles.css           页面样式
+src/js/core.js           公共状态、数据模型与基础计算
+src/js/storage.js        文件、加密、导入导出与账本管理
+src/js/transactions.js   流水、成本基础、对账与跨月同步
+src/js/quotes.js         股价、汇率与首月价格基线
+src/js/trends.js         盈亏归因与趋势图表
+src/js/ui.js             页面、表格和对话框渲染
+src/js/app.js            全局事件、PWA 与启动流程
+scripts/build.mjs        单文件构建及一致性检查
+package.json             构建命令定义
+```
+
+修改源码后运行：
+
+```sh
+npm run build
+npm run check
+```
+
+`npm run build` 不需要安装第三方依赖，会把模板、CSS 和所有 JavaScript 模块重新内联到根目录 `index.html`。`npm run check` 用于确认提交或部署的 `index.html` 与源码完全一致。开发时不要直接修改生成后的 `index.html`。
+
+### Git 提交范围
+
+应提交：`assets/`、`src/`、`scripts/`、`index.html`、`package.json`、`manifest.webmanifest`、`service-worker.js`、`README.md`、`PROJECT_CONTEXT.md`、`demo-ledger.json`。
+
+不要提交：个人账本（`*_ledger_data.json`）、下载的备份（`*_backup_*.json`）、`.DS_Store`、`node_modules/`、`.env` 或任何密码、令牌和私钥。项目已通过 `.gitignore` 忽略常见本地文件；提交前仍应检查 `git status`。
+
+将源码目录、`PROJECT_CONTEXT.md`、`demo-ledger.json` 和清晰的修改需求交给 AI Agent 即可继续定制。请明确要求 Agent 保持 JSON 兼容、不上传真实账本；涉及流水或跨月同步时，同时检查应用、回滚、同步和对账逻辑。

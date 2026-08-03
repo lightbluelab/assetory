@@ -1,0 +1,14 @@
+# Operating-system and local tool metadata
+.DS_Store
+node_modules/
+npm-debug.log*
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Personal ledger files and browser-download backups
+*_ledger_data.json
+*_backup_*.json
+*.local.json
