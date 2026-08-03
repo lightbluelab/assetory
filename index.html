@@ -1151,13 +1151,9 @@ function usedCurrencies(){
 }
 function monthTotals(mKey){
   const m = ledger.months[mKey];
-  if(!m) return {net:0,assets:0,liab:0,income:0,expense:0};
-  let net=0, assets=0, liab=0;
-  m.balance.forEach(r=>{ const v=rowCNY(r,mKey); net+=v; if(v<0) liab+=v; else assets+=v; });
-  let income=0, expense=0;
-  m.flows.forEach(f=>{ if(f.kind==="income"||f.kind==="dividend") income+=Number(f.amount||0); else if(f.kind==="expense") expense+=Number(f.amount||0); });
-  return {net,assets,liab,income,expense};
+  return m?balanceTotals(m.balance,m.fxRates):{net:0,assets:0,liab:0};
 }
+function monthKeys(){ return Object.keys(ledger?.months||{}).sort(); }
 function previousMonthKey(mKey){
   const [year,month]=mKey.split("-").map(Number);
   const d=new Date(year,month-2,1);
@@ -1182,7 +1178,6 @@ function cashFlowTotals(mKey){
   });
   return {inflow,outflow,net:inflow-outflow,detail};
 }
-function monthKeysDesc(){ return Object.keys(ledger.months).sort().reverse(); } // 最近月在前
 // 某月按分组的人民币金额(用于堆叠图)
 function monthGroupTotals(mKey){
   const m=ledger.months[mKey]; const g={};
@@ -1194,7 +1189,7 @@ function contributionGroup(row){
   const prefix=row.cls==="liability"?"负债":"资产";
   return prefix+"·"+(row.group||ASSET_CLASSES[row.cls]?.name||"未分组");
 }
-function snapshotTotals(balance,fxRates){
+function balanceTotals(balance,fxRates){
   let net=0, assets=0, liab=0;
   (balance||[]).forEach(row=>{
     const sign=ASSET_CLASSES[row.cls]?.sign||1;
@@ -1287,7 +1282,7 @@ function profitAttribution(mKey,prevKey){
     const group=contributionGroup(row);
     deltas[group]=(deltas[group]||0)+pnl;
   });
-  const opening=hasPrevious?monthTotals(prevKey):snapshotTotals(openingBaseline(mKey).balance,ledger.months[mKey]?.fxRates);
+  const opening=hasPrevious?monthTotals(prevKey):balanceTotals(openingBaseline(mKey).balance,ledger.months[mKey]?.fxRates);
   const netDelta=monthTotals(mKey).net-opening.net;
   const explained=Object.values(deltas).reduce((sum,value)=>sum+value,0);
   const residual=netDelta-explained;
@@ -1343,23 +1338,16 @@ function renderStorageInfo(){
 }
 
 // ---------- 渲染: 月份 tabs ----------
-function monthTabTime(value){
-  const date=new Date(value||"");
-  if(Number.isNaN(date.getTime())) return "—";
-  const pad=n=>String(n).padStart(2,"0");
-  return `${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
 function renderMonthTabs(){
   const nav = $("monthTabs");
-  const keys = Object.keys(ledger.months).sort();
+  const keys = monthKeys();
   if(activeMonth && !ledger.months[activeMonth]) activeMonth=null;
   if(!activeMonth && keys.length) activeMonth = keys[keys.length-1];
-  const allKeys2=Object.keys(ledger.months).sort();
-  const latestKey2=allKeys2[allKeys2.length-1];
+  const latestKey=keys[keys.length-1];
   nav.innerHTML = keys.map(k=>{
     return `
     <div class="month-tab ${k===activeMonth?"active":""}" data-m="${k}">
-      <span class="lbl">${k}</span>${k===latestKey2?`<span class="close" data-del="${k}" title="删除此月（将先下载备份）">✕</span>`:""}</div>`;
+      <span class="lbl">${k}</span>${k===latestKey?`<span class="close" data-del="${k}" title="删除此月（将先下载备份）">✕</span>`:""}</div>`;
   }).join("") + `<button class="add-tab" id="btnAddMonth">＋ 添加月份</button>`;
 
   nav.querySelectorAll(".month-tab").forEach(el=>{
@@ -1372,8 +1360,6 @@ function renderMonthTabs(){
     el.addEventListener("click",async e=>{
       e.stopPropagation();
       const k=el.dataset.del;
-      const allKeys=Object.keys(ledger.months).sort();
-      const latestKey=allKeys[allKeys.length-1];
       // 只允许删除最新月
       if(k!==latestKey){
         alert(`只允许删除最新月份（${latestKey}）。\n「${k}」是旧月份，无法删除以防止数据链断裂。`);
@@ -1406,9 +1392,10 @@ async function addMonth(){
   if(!isValidMonthKey(k)){ alert("请输入有效月份（YYYY-MM）"); return; }
   if(ledger.months[k]){ balanceEditMode=false; flowEditMode=false; activeMonth=k; renderMonthTabs(); renderMonthPanel(); return; }
   const month=newMonth();
-  const next=Object.keys(ledger.months).filter(x=>x>k).sort()[0]||null;
+  const keys=monthKeys();
+  const next=keys.find(x=>x>k)||null;
   // 取最近的一个更早月份作为拷贝对象: 拷贝资产负债表 + 汇率, 不拷贝流水
-  const prev = Object.keys(ledger.months).filter(x=>x<k).sort().pop();
+  const prev = keys.filter(x=>x<k).pop();
   if(prev){
     // 拷贝上月资产,但已清仓(数量/金额归零)的持有资产不再带入
     month.balance = ledger.months[prev].balance
@@ -1451,7 +1438,7 @@ function renderMonthPanel(){
   const cashFlow=cashFlowTotals(activeMonth);
   const prevCashFlow=prevTotals ? cashFlowTotals(prevKey) : null;
   // 与整体趋势一致：若中间月份缺失，仍以前一个已存在月份作为盈亏比较基准。
-  const pnlPrevKey=Object.keys(ledger.months).filter(k=>k<activeMonth).sort().pop()||null;
+  const pnlPrevKey=monthKeys().filter(k=>k<activeMonth).pop()||null;
   const assetPnl=assetProfitAttribution(activeMonth,pnlPrevKey);
   const manualFields=new Set((reconcile(activeMonth)?.issues||[]).filter(i=>i.id&&i.field).map(i=>`${i.id}:${i.field}`));
   const metricCard=(label,value,prevValue)=>{
@@ -1481,14 +1468,13 @@ function renderMonthPanel(){
     const sb=groups[b].reduce((s,x)=>s+rowCNY(x.r),0);
     return sb-sa;
   });
+  const sortedGroups=groupNames.map(name=>({name,items:groups[name].slice().sort((a,b)=>rowCNY(b.r)-rowCNY(a.r))}));
 
   let body = "";
   if(!visibleBalance.length){
     body = `<tr><td colspan="9" class="empty">本月暂无资产条目，点「＋ 添加资产」开始。</td></tr>`;
   }else{
-    groupNames.forEach(g=>{
-      // 组内按人民币金额降序
-      const items = groups[g].slice().sort((a,b)=>rowCNY(b.r)-rowCNY(a.r));
+    sortedGroups.forEach(({name:g,items})=>{
       let gSum=0, gPnl=0, gAssets=0, gLiabs=0;
       items.forEach(({r})=>{ const value=rowCNY(r); gSum+=value; gPnl+=assetPnl.rowPnl[r.id]||0; if(value>=0) gAssets+=value; else gLiabs+=Math.abs(value); });
       // 分组标题行
@@ -1535,8 +1521,7 @@ function renderMonthPanel(){
         <td class="num subtotal-amount ${gSum<0?"neg":""}">${fmtMoney(gSum)}</td><td class="num mut subtotal-pct">${gPct}</td><td class="num">${pnlCell(gPnl)}</td><td></td></tr>`;
     });
   }
-  const mobileBalance = groupNames.map(g=>{
-    const items=groups[g].slice().sort((a,b)=>rowCNY(b.r)-rowCNY(a.r));
+  const mobileBalance = sortedGroups.map(({name:g,items})=>{
     return `<div class="mobile-group">${escapeHTML(g)}</div>`+items.map(({r,idx})=>{
       const cls=ASSET_CLASSES[r.cls], cny=rowCNY(r), pct=cny<0?(t.liab?Math.abs(cny/t.liab*100):0):(t.assets?cny/t.assets*100:0);
       const pnl=assetPnl.rowPnl[r.id]||0;
@@ -1606,7 +1591,7 @@ function renderMonthPanel(){
   el.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",async()=>{
     const row=m.balance[+b.dataset.del];
     if(!row) return;
-    const keys=Object.keys(ledger.months).filter(key=>key>=activeMonth).sort();
+    const keys=monthKeys().filter(key=>key>=activeMonth);
     const related=keys.reduce((count,key)=>count+(ledger.months[key].flows||[]).filter(flow=>flow.fromAssetId===row.id||flow.toAssetId===row.id).length,0);
     if(!confirm(`删除资产「${row.name}」将影响 ${keys.length} 个月，并删除 ${related} 条相关流水。\n系统会先下载完整备份，是否继续？`)) return;
     if(!(await backupCurrentLedger())) return;
@@ -2064,25 +2049,32 @@ async function fetchStockPrice(market, symbol, monthKey){
   if(!(out && out.price>0)) throw new Error("未获取到有效收盘价");
   return out;
 }
-function firstMonthKey(){ return Object.keys(ledger?.months||{}).sort()[0]||null; }
 async function fetchOpeningPriceBaseline(row,monthKey){
-  if(monthKey!==firstMonthKey()||row.cls!=="stock"||!row.auto||!row.symbol) return null;
+  if(monthKey!==monthKeys()[0]||row.cls!=="stock"||!row.auto||!row.symbol) return null;
   const {price,date,src}=await fetchStockPrice(row.market,row.symbol,previousMonthKey(monthKey));
   return {price,date,src};
+}
+async function fetchStockUpdate(row,monthKey){
+  const {price,date,src}=await fetchStockPrice(row.market,row.symbol,monthKey);
+  if(!(price>0)) throw new Error("价格为0");
+  const baseline=await fetchOpeningPriceBaseline(row,monthKey).catch(()=>null);
+  return {price,date,priceAt:`${date}${src?"("+src+")":""}`,baseline};
+}
+function applyStockUpdate(month,row,result){
+  row.price=result.price;
+  row.priceStatus="ok";
+  row.priceAt=result.priceAt;
+  row.manualPriceAt=null;
+  if(result.baseline) month.openingPrices={...(month.openingPrices||{}),[row.id]:result.baseline};
 }
 async function updateOnePrice(idx){
   const m=ledger.months[activeMonth]; const r=m.balance[idx];
   if(!r.auto||!r.symbol){ alert("该条目未配置自动更新"); return; }
   setStatus(`获取 ${r.symbol} 价格中…`);
   try{
-    const {price,date,src}=await fetchStockPrice(r.market, r.symbol, activeMonth);
-    if(!(price>0)) throw new Error("价格为0");
-    const baseline=await fetchOpeningPriceBaseline(r,activeMonth).catch(()=>null);
-    const ok=await transact(`更新股价：${r.name}`,()=>{
-      r.price=price; r.priceStatus="ok"; r.priceAt=`${date}${src?"("+src+")":""}`; r.manualPriceAt=null;
-      if(baseline) m.openingPrices={...(m.openingPrices||{}),[r.id]:baseline};
-    });
-    if(ok) setStatus(`${r.name} 已更新: ${price} @ ${date}${baseline?"；已记录上月底价格基线":""}`);
+    const result=await fetchStockUpdate(r,activeMonth);
+    const ok=await transact(`更新股价：${r.name}`,()=>applyStockUpdate(m,r,result));
+    if(ok) setStatus(`${r.name} 已更新: ${result.price} @ ${result.date}${result.baseline?"；已记录上月底价格基线":""}`);
   }catch(e){
     const recorded=await transact(`记录股价获取失败：${r.name}`,()=>{ r.priceStatus="warn"; });
     if(recorded) setStatus(`${r.name} 自动获取失败(${e.message})，请手动填写`);
@@ -2094,13 +2086,15 @@ async function updateAllPrices(){
   if(!targets.length){ setStatus("本月没有可自动更新的股价条目"); return; }
   const results=[];
   for(const {r,i} of targets){
-    try{ const {price,date,src}=await fetchStockPrice(r.market,r.symbol,activeMonth);
-      if(!(price>0)) throw new Error("价格为0");
-      const baseline=await fetchOpeningPriceBaseline(r,activeMonth).catch(()=>null);
-      results.push({i,price,status:"ok",priceAt:`${date}${src?"("+src+")":""}`,baseline});
+    try{
+      results.push({i,status:"ok",...await fetchStockUpdate(r,activeMonth)});
     }catch(e){ results.push({i,status:"warn",error:e.message}); }
   }
-  const saved=await transact(`批量更新股价（成功 ${results.filter(result=>result.status==="ok").length}/${targets.length}）`,()=>results.forEach(result=>{ const row=m.balance[result.i]; if(!row) throw new Error("资产在更新期间已变化"); if(result.status==="ok"){ row.price=result.price; row.priceStatus="ok"; row.priceAt=result.priceAt; row.manualPriceAt=null; if(result.baseline) m.openingPrices={...(m.openingPrices||{}),[row.id]:result.baseline}; } else row.priceStatus="warn"; }));
+  const saved=await transact(`批量更新股价（成功 ${results.filter(result=>result.status==="ok").length}/${targets.length}）`,()=>results.forEach(result=>{
+    const row=m.balance[result.i];
+    if(!row) throw new Error("资产在更新期间已变化");
+    if(result.status==="ok") applyStockUpdate(m,row,result); else row.priceStatus="warn";
+  }));
   if(!saved) return;
   const ok=results.filter(x=>x.status==="ok").length;
   const failed=results.filter(x=>x.status!=="ok");
@@ -2140,9 +2134,8 @@ function applyFlow(f,sign){ applyFlowToBalance(ledger.months[activeMonth].balanc
 // ---------- 跨月同步: 将某月期末同步为下月期初并重算 ----------
 // 找到以 fromKey 为拷贝来源的下一月
 function childMonthOf(fromKey){
-  return Object.keys(ledger.months).filter(k=>ledger.months[k].copiedFrom===fromKey).sort()[0]||null;
+  return monthKeys().find(k=>ledger.months[k].copiedFrom===fromKey)||null;
 }
-function applyFlowOn(bal,f,sign){ applyFlowToBalance(bal,f,sign); }
 // 基金和固定资产的 value 同时承载交易金额与人工期末估值。
 // 同步前先从旧期初重放流水，抽取“流水无法解释的估值调整”；不能把旧期末 value
 // 直接覆盖到新期初，否则卖出流水会在重放时被重复扣减。
@@ -2158,7 +2151,7 @@ function childValuationAdjustments(child,oldBal,flowAssetIds){
     base.costBasisCNY=0;
     replay.push(base);
   });
-  (child.flows||[]).forEach(flow=>applyFlowOn(replay,flow,+1));
+  (child.flows||[]).forEach(flow=>applyFlowToBalance(replay,flow,+1));
   const replayById=new Map(replay.map(row=>[row.id,row]));
   const out={};
   oldBal.forEach(row=>{
@@ -2218,7 +2211,7 @@ function rebuildChildFromParent(parentKey, childKey){
   bal.forEach(row=>{ const own=childOverrides[row.id]; if(own?.price!=null) row.price=own.price; });
   // 流水以资产 ID 引用，缺失引用会中止同步，不会静默指向其他资产。
   (child.flows||[]).forEach(f=>{
-    applyFlowOn(bal, f, +1);
+    applyFlowToBalance(bal,f,+1);
   });
   Object.entries(valuationAdjustments).forEach(([id,adjustment])=>{
     const row=bal.find(item=>item.id===id);
@@ -2449,13 +2442,6 @@ function refreshQtyPriceMode(){
   $("fd-amount").style.display=usesQtyPrice?"none":"";
   applyLiquidate();
 }
-// 选中卖出的持有资产(返回 balance row 或 null)
-function sellHoldingRow(){
-  const ft=FLOW_TYPES[$("fdKind").value];
-  const sel = ft.from==="holding" ? $("fdFrom") : null;
-  if(!sel || sel.value==="__new__") return null;
-  return assetById(sel.value);
-}
 // 清仓/还清: 用当前全部持仓/负债余额填满并锁定输入
 function applyLiquidate(){
   const kind=$("fdKind").value;
@@ -2652,7 +2638,7 @@ function renderAll(){
 let trendState={win:"all", from:null, to:null};
 let trendHiddenGroups=new Set(); // 被隐藏的分组名
 function trendMonthKeys(){
-  const all=Object.keys(ledger?.months||{}).sort();
+  const all=monthKeys();
   if(!all.length) return [];
   if(trendState.win==="12") return all.slice(-12);
   if(trendState.win==="ytd"){ const y=new Date().getFullYear()+"-01"; return all.filter(k=>k>=y); }
@@ -2728,7 +2714,7 @@ document.addEventListener("mouseout", e=>{
 });
 
 function renderTrendSummary(keys){
-  const allKeys=Object.keys(ledger.months).sort();
+  const allKeys=monthKeys();
   // base = 窗口首月的前一个已有月份(体现"期初")；无前月则退回首月自身
   const firstIdx=allKeys.indexOf(keys[0]);
   const baseKey = firstIdx>0 ? allKeys[firstIdx-1] : keys[0];
@@ -2774,7 +2760,7 @@ function smoothPath(pts){
 }
 // 资产规模按月展示变动值；窗口首月仍相较其真实上月，整个账本首月记为 0。
 function stackedChart(keys){
-  const allKeys=Object.keys(ledger.months).sort();
+  const allKeys=monthKeys();
   const groupSet={};
   const data=keys.map(k=>{
     const priorIndex=allKeys.indexOf(k)-1;
@@ -2863,7 +2849,7 @@ function profitSummaryCards(names,data,colorFor){
 // 净资产盈亏归因：投资分组按期末价值变化扣除买入成本、加回卖出成交额和资产收益。
 function profitChart(keys){
   const W=Math.max(520,keys.length*72), H=160, PL=8, PR=8, PT=14, PB=22;
-  const allKeys=Object.keys(ledger.months).sort(), categorySet={};
+  const allKeys=monthKeys(), categorySet={};
   const rawData=keys.map((k,index)=>{
     const priorIndex=allKeys.indexOf(k)-1;
     const prevKey=index>0?keys[index-1]:(priorIndex>=0?allKeys[priorIndex]:null);
