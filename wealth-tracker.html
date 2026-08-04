@@ -9,8 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <title id="pageTitle">WEALTH TRACKER</title>
 <link rel="icon" type="image/svg+xml" href="./assets/images/wealth_tracker.svg" />
-<link rel="apple-touch-icon" sizes="180x180" href="./assets/images/wealth_tracker-180.png?v=20260804-v29" />
-<link rel="manifest" href="./manifest.webmanifest?v=20260804-v29" />
+<link rel="apple-touch-icon" sizes="180x180" href="./assets/images/wealth_tracker-180.png?v=20260804-v30" />
+<link rel="manifest" href="./manifest.webmanifest?v=20260804-v30" />
 <style>
 :root{
   --bg:#efe9db; --panel:#faf7f0; --panel2:#f4efe3; --line:#e0d7c4;
@@ -3126,7 +3126,7 @@ function showInstallGuide(){
 function initPWA(){
   if(isMobileDevice()&&!window.matchMedia("(display-mode: standalone)").matches) $("btnInstallApp").hidden=false;
   if(!window.isSecureContext||!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./service-worker.js?v=20260804-v29",{scope:"./"}).then(reg=>{
+  navigator.serviceWorker.register("./service-worker.js?v=20260804-v30",{scope:"./"}).then(reg=>{
     reg.addEventListener("updatefound",()=>{
       const worker=reg.installing;
       if(!worker) return;

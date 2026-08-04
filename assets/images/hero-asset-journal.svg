@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 620" role="img" aria-labelledby="title desc">
+  <title id="title">月度资产整理插画</title>
+  <desc id="desc">记账本、计算器和资产图表组成的扁平插画</desc>
+  <rect width="760" height="620" fill="#d8e4d3"/>
+  <path d="M0 470C146 430 245 505 384 463S605 386 760 430V620H0Z" fill="#c2d7c0"/>
+  <circle cx="105" cy="114" r="52" fill="#f6f7f3"/>
+  <circle cx="650" cy="125" r="74" fill="#e9eee4"/>
+  <g transform="translate(114 92) rotate(-5 260 210)">
+    <rect x="38" y="30" width="500" height="390" rx="10" fill="#173b3f" opacity=".16"/>
+    <rect x="18" y="12" width="500" height="390" rx="7" fill="#f8f5eb" stroke="#173b3f" stroke-width="5"/>
+    <path d="M268 16V398" stroke="#d4ddd6" stroke-width="5"/>
+    <path d="M48 82H238M48 126H238M48 170H238M48 214H238M48 258H238M298 82H488M298 126H488M298 170H488M298 214H488M298 258H488" stroke="#c7d2ca" stroke-width="3"/>
+    <path d="M48 56H158" stroke="#d95e40" stroke-width="8"/>
+    <path d="M298 56H422" stroke="#173b3f" stroke-width="8"/>
+    <rect x="55" y="101" width="54" height="18" rx="3" fill="#d8e4d3"/>
+    <rect x="121" y="101" width="89" height="18" rx="3" fill="#d8e4d3"/>
+    <rect x="55" y="145" width="108" height="18" rx="3" fill="#f1d4c9"/>
+    <rect x="174" y="145" width="48" height="18" rx="3" fill="#f1d4c9"/>
+    <rect x="55" y="189" width="72" height="18" rx="3" fill="#d8e4d3"/>
+    <rect x="138" y="189" width="90" height="18" rx="3" fill="#d8e4d3"/>
+    <path d="M310 246V166M354 246V121M398 246V150M442 246V96" stroke="#173b3f" stroke-width="27"/>
+    <path d="M310 166V145M354 121V94M398 150V132M442 96V70" stroke="#d95e40" stroke-width="27"/>
+    <path d="M302 294C341 269 370 307 401 276S453 272 483 238" fill="none" stroke="#173b3f" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="302" cy="294" r="8" fill="#d95e40"/><circle cx="401" cy="276" r="8" fill="#d95e40"/><circle cx="483" cy="238" r="8" fill="#d95e40"/>
+  </g>
+  <g transform="translate(492 390) rotate(11)">
+    <rect x="10" y="12" width="165" height="176" rx="14" fill="#173b3f" opacity=".16"/>
+    <rect width="165" height="176" rx="13" fill="#173b3f"/>
+    <rect x="18" y="18" width="129" height="42" rx="6" fill="#c8e786"/>
+    <g fill="#f6f7f3"><circle cx="32" cy="86" r="10"/><circle cx="66" cy="86" r="10"/><circle cx="100" cy="86" r="10"/><circle cx="32" cy="116" r="10"/><circle cx="66" cy="116" r="10"/><circle cx="100" cy="116" r="10"/><circle cx="32" cy="146" r="10"/><circle cx="66" cy="146" r="10"/></g>
+    <circle cx="133" cy="131" r="25" fill="#d95e40"/>
+  </g>
+  <g transform="translate(75 445)">
+    <path d="M78 100V10" stroke="#173b3f" stroke-width="8" stroke-linecap="round"/>
+    <path d="M77 54C35 50 15 19 25 0 62 5 79 25 77 54Z" fill="#4f8b70"/>
+    <path d="M81 80C113 52 151 57 163 79 134 101 103 99 81 80Z" fill="#5fa37f"/>
+    <path d="M78 34C105 10 138 17 148 37 117 54 94 52 78 34Z" fill="#d95e40"/>
+    <path d="M30 96H125L114 129H42Z" fill="#d95e40"/>
+  </g>
+  <circle cx="660" cy="337" r="22" fill="#d95e40"/>
+  <circle cx="700" cy="378" r="14" fill="#173b3f"/>
+</svg>
