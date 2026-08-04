@@ -142,12 +142,14 @@ function migrateLedger(data){
     const amount=Number(rule.amount);
     if(!Number.isFinite(amount)||amount<=0) return null;
     const startMonth=isValidMonthKey(rule.startMonth)?rule.startMonth:null;
-    const clean={id,kind:rule.kind,day,amount,startMonth,
+    const endMonth=isValidMonthKey(rule.endMonth)&&(!startMonth||rule.endMonth>=startMonth)?rule.endMonth:null;
+    const clean={id,kind:rule.kind,day,amount,startMonth,endMonth,
       fromAssetId:textValue(rule.fromAssetId,100),toAssetId:textValue(rule.toAssetId,100),
       note:textValue(rule.note,240),subcat:textValue(rule.subcat,80)};
     if(!clean.fromAssetId) delete clean.fromAssetId;
     if(!clean.toAssetId) delete clean.toAssetId;
     if(!clean.startMonth) delete clean.startMonth;
+    if(!clean.endMonth) delete clean.endMonth;
     if(!clean.note) delete clean.note;
     if(!clean.subcat) delete clean.subcat;
     return clean;

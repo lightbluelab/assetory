@@ -392,13 +392,13 @@ function renderFlowSummary(){
   </div>`;
 }
 function renderRecurringFlowManager(){
-  const rules=ledger.recurringFlows||[];
+  const rules=(ledger.recurringFlows||[]).filter(rule=>isRecurringRuleActive(rule,activeMonth));
   const rows=rules.map(rule=>`<div class="recurring-row">
     <div class="recurring-row-main"><strong>${escapeHTML(recurringRuleLabel(rule))}</strong><span class="mut">${moneyCell(rule.amount,recurringRuleCurrency(rule))}${rule.note?` · ${escapeHTML(rule.note)}`:""}</span></div>
     <div class="recurring-actions"><button class="mini" data-redit="${escapeAttr(rule.id)}">编辑</button><button class="mini danger" data-rdel="${escapeAttr(rule.id)}">删</button></div>
   </div>`).join("");
-  return `<details id="recurringManager" class="recurring-manager"><summary>周期流水 <span class="mut">${rules.length?`${rules.length} 条规则`:"未设置"}</span></summary>
-    <div class="recurring-content"><div class="recurring-list">${rows||`<div class="mut">暂无周期流水规则。</div>`}</div><button class="mini" id="btnAddRecurring">＋ 添加周期流水</button></div>
+  return `<details id="recurringManager" class="recurring-manager"><summary>周期流水 <span class="mut">${rules.length?`${rules.length} 条生效规则`:"本月无生效规则"}</span></summary>
+    <div class="recurring-content"><div class="recurring-list">${rows||`<div class="mut">当前月份没有生效的周期流水规则。</div>`}</div><button class="mini" id="btnAddRecurring">＋ 添加周期流水</button></div>
   </details>`;
 }
 function renderFlowRows(){

@@ -165,7 +165,11 @@ function recurringRuleLabel(rule){
   const type=FLOW_TYPES[rule.kind]?.name||"周期流水";
   const from=rule.fromAssetId?assetLabel(rule.fromAssetId):"";
   const to=rule.toAssetId?assetLabel(rule.toAssetId):"";
-  return `${type} · 每月 ${rule.day} 日${from||to?` · ${from}${from&&to?" → ":""}${to}`:""}`;
+  const range=rule.startMonth?` · ${rule.startMonth}${rule.endMonth?` 至 ${rule.endMonth}`:" 起"}`:"";
+  return `${type} · 每月 ${rule.day} 日${range}${from||to?` · ${from}${from&&to?" → ":""}${to}`:""}`;
+}
+function isRecurringRuleActive(rule,monthKey){
+  return Boolean(rule&&monthKey&&(!rule.startMonth||monthKey>=rule.startMonth)&&(!rule.endMonth||monthKey<=rule.endMonth));
 }
 function recurringRuleFlow(rule,monthKey,month){
   const source=rule.fromAssetId?month.balance.find(row=>row.id===rule.fromAssetId):null;
@@ -187,7 +191,7 @@ function applyRecurringFlowsToMonth(monthKey){
   if(!month) return {created:0,skipped:0};
   let created=0, skipped=0;
   (ledger.recurringFlows||[]).forEach(rule=>{
-    if(rule.startMonth&&monthKey<rule.startMonth) return;
+    if(!isRecurringRuleActive(rule,monthKey)) return;
     if((month.flows||[]).some(flow=>flow.recurringId===rule.id)) return;
     const rec=recurringRuleFlow(rule,monthKey,month);
     if(!rec){ skipped++; return; }
@@ -217,6 +221,29 @@ function backfillRecurringFlows(){
     const result=applyRecurringFlowsToMonth(monthKey);
     total.created+=result.created; total.skipped+=result.skipped;
     if(result.created) markMonthChanged(monthKey,"补齐周期流水",[`新增 ${result.created} 条周期流水`]);
+  });
+  return total;
+}
+function syncRecurringRule(rule){
+  const total={created:0,updated:0,removed:0};
+  monthKeys().forEach(monthKey=>{
+    const month=ledger.months[monthKey];
+    const existing=(month.flows||[]).filter(flow=>flow.recurringId===rule.id);
+    const active=isRecurringRuleActive(rule,monthKey);
+    if(!existing.length&&!active) return;
+    existing.forEach(flow=>applyFlowToBalance(month.balance,flow,-1));
+    month.flows=(month.flows||[]).filter(flow=>flow.recurringId!==rule.id);
+    if(active){
+      const replacement=recurringRuleFlow(rule,monthKey,month);
+      if(!replacement) throw new Error(`${monthKey} 缺少周期流水所需的账户，无法同步规则`);
+      replacement.id=existing[0]?.id||uid("f");
+      validateFlowCapacity(month,replacement);
+      refreshFlowCostMetadata(month,replacement,monthKey);
+      month.flows.push(replacement);
+      applyFlowToBalance(month.balance,replacement,+1);
+      if(existing.length) total.updated++; else total.created++;
+    }else total.removed+=existing.length;
+    if(monthKey!==activeMonth) markMonthChanged(monthKey,"同步周期流水",[active?"更新周期流水":"移除不再生效的周期流水"]);
   });
   return total;
 }
@@ -596,10 +623,11 @@ function buildRecurringFields(rule){
 function openRecurringDialog(id){
   const rule=id?(ledger.recurringFlows||[]).find(item=>item.id===id):null;
   if(id&&!rule){ alert("周期流水不存在"); return; }
-  const draft=rule||{kind:"expense",day:1,amount:"",note:"",subcat:""};
+  const draft=rule||{kind:"expense",day:1,amount:"",note:"",subcat:"",startMonth:activeMonth,endMonth:""};
   $("recurringDlgTitle").textContent=rule?"编辑周期流水":"添加周期流水";
   $("rdKind").value=draft.kind; $("rdDay").value=draft.day; $("rdAmount").value=draft.amount;
   $("rdSubcat").value=draft.subcat||""; $("rdNote").value=draft.note||"";
+  $("rdStartMonth").value=draft.startMonth||activeMonth; $("rdEndMonth").value=draft.endMonth||"";
   $("recurringDialog").dataset.edit=rule?.id||"";
   buildRecurringFields(draft);
   $("recurringDialog").hidden=false;
@@ -616,7 +644,11 @@ function buildRecurringDraft(){
   if((kind!=="income"&&!from)||(kind!=="expense"&&!to)) throw new Error("请选择有效账户");
   if(kind==="transfer"&&fromId===toId) throw new Error("转出与转入账户不能相同");
   if((kind==="transfer"||kind==="repay")&&from.currency!==to.currency) throw new Error("周期转账和还款暂不支持跨币种账户");
-  const rec={kind,day,amount,startMonth:activeMonth,note:textValue($("rdNote").value,240)};
+  const startMonth=$("rdStartMonth").value||activeMonth, endMonth=$("rdEndMonth").value||"";
+  if(!isValidMonthKey(startMonth)) throw new Error("请输入有效的生效月份");
+  if(endMonth&&(!isValidMonthKey(endMonth)||endMonth<startMonth)) throw new Error("终止月份不能早于生效月份");
+  const rec={kind,day,amount,startMonth,note:textValue($("rdNote").value,240)};
+  if(endMonth) rec.endMonth=endMonth;
   if(fromId) rec.fromAssetId=fromId;
   if(toId) rec.toAssetId=toId;
   if(kind==="income"||kind==="expense") rec.subcat=textValue($("rdSubcat").value,80);
@@ -643,12 +675,11 @@ $("btnRecurringOk").addEventListener("click",async()=>{
       const index=ledger.recurringFlows.findIndex(rule=>rule.id===editId);
       if(index<0) throw new Error("周期流水不存在");
       draft.id=editId;
-      // 已生成的实际流水是历史记录；规则修改仅作用于之后新建的月份。
       ledger.recurringFlows[index]=draft;
+      syncRecurringRule(draft);
     }else{
       draft.id=uid("r"); ledger.recurringFlows.push(draft);
-      // 已经建立的后续月份也应立即获得规则对应的流水；recurringId 可防止重复生成。
-      applyRecurringFlowsFromMonth(activeMonth);
+      syncRecurringRule(draft);
     }
   });
   if(ok) $("recurringDialog").hidden=true;
