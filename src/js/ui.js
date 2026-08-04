@@ -100,6 +100,7 @@ async function addMonth(){
   const previousActive=activeMonth; balanceEditMode=false; flowEditMode=false; activeMonth=k;
   const ok=await transact("添加月份",()=>{
     ledger.months[k]=month;
+    applyRecurringFlowsToMonth(k);
     // 在现有月份之间补建月份时，把原直接子月改为继承新月份，保持单一时间链。
     if(prev&&next&&ledger.months[next]?.copiedFrom===prev){
       ledger.months[next].copiedFrom=k;
@@ -248,14 +249,15 @@ function renderMonthPanel(){
     ${renderFxBar()}
     <div class="tbl-head" style="margin-top:24px">
       <h3>流水表 · ${activeMonth}</h3>
-      <div><button class="mini" id="btnFlowEdit">编辑</button><button class="primary mini" id="btnAddFlow">＋ 添加流水</button></div>
+      <div><button class="mini" id="btnRecurringToggle" type="button">周期流水</button><button class="mini" id="btnFlowEdit">编辑</button><button class="primary mini" id="btnAddFlow">＋ 添加流水</button></div>
     </div>
+    ${renderRecurringFlowManager()}
     ${renderFlowSummary()}
     <div class="table-wrap"><table class="flow">
       <thead><tr><th>日期</th><th>类型</th><th>流出方</th><th>流入方</th><th>金额</th><th>备注</th><th>操作</th></tr></thead>
       <tbody>${renderFlowRows()}</tbody>
     </table></div>
-    <p class="hint">收入、资产收益、支出、转账、买入、卖出、还款会自动同步修改上方资产负债表；删除流水会回滚其影响。</p>`;
+    <p class="hint">收入、资产收益、支出、转账、买入、卖出、还款和手工估值调整会自动同步修改上方资产负债表；删除流水会回滚其影响。</p>`;
 
   // 事件
   const demoBackup=$("btnDemoBackup"); if(demoBackup) demoBackup.addEventListener("click",()=>backupCurrentLedger());
@@ -292,6 +294,7 @@ function renderMonthPanel(){
         if(month.openingPrices) delete month.openingPrices[row.id];
         if(key!==activeMonth) markMonthChanged(key,`删除资产：${row.name}及关联流水`);
       });
+      ledger.recurringFlows=(ledger.recurringFlows||[]).filter(rule=>rule.fromAssetId!==row.id&&rule.toAssetId!==row.id);
       // 后续月份的期初可能仍带有被删除流水造成的现金影响，沿继承链重建。
       let source=activeMonth;
       while(true){
@@ -305,8 +308,13 @@ function renderMonthPanel(){
   el.querySelectorAll("[data-price]").forEach(b=>b.addEventListener("click",()=>updateOnePrice(+b.dataset.price)));
   el.querySelectorAll("[data-price-edit]").forEach(b=>b.addEventListener("click",()=>openPriceEditor(+b.dataset.priceEdit)));
   $("btnAddFlow").addEventListener("click",()=>openFlowDialog(null));
+  $("btnRecurringToggle").addEventListener("click",()=>{
+    const panel=$("recurringManager");
+    if(panel) panel.open=!panel.open;
+  });
   el.querySelectorAll("[data-fedit]").forEach(b=>b.addEventListener("click",()=>openFlowDialog(b.dataset.fedit)));
   el.querySelectorAll("[data-fdel]").forEach(b=>b.addEventListener("click",()=>deleteFlow(b.dataset.fdel)));
+  bindRecurringFlowManager();
   bindFxBar();
   const bn=$("btnSyncNext"); if(bn) bn.addEventListener("click",()=>{ if(confirm("将本月期末同步为下月期初并重算下月？")) syncToNext(activeMonth); });
   const ba=$("btnSyncAll"); if(ba) ba.addEventListener("click",()=>{ if(confirm("沿拷贝链把改动同步到后续所有月份并重算？")) syncToAll(activeMonth); });
@@ -383,6 +391,16 @@ function renderFlowSummary(){
     </div>
   </div>`;
 }
+function renderRecurringFlowManager(){
+  const rules=ledger.recurringFlows||[];
+  const rows=rules.map(rule=>`<div class="recurring-row">
+    <div class="recurring-row-main"><strong>${escapeHTML(recurringRuleLabel(rule))}</strong><span class="mut">${moneyCell(rule.amount,recurringRuleCurrency(rule))}${rule.note?` · ${escapeHTML(rule.note)}`:""}</span></div>
+    <div class="recurring-actions"><button class="mini" data-redit="${escapeAttr(rule.id)}">编辑</button><button class="mini danger" data-rdel="${escapeAttr(rule.id)}">删</button></div>
+  </div>`).join("");
+  return `<details id="recurringManager" class="recurring-manager"><summary>周期流水 <span class="mut">${rules.length?`${rules.length} 条规则`:"未设置"}</span></summary>
+    <div class="recurring-content"><div class="recurring-list">${rows||`<div class="mut">暂无周期流水规则。</div>`}</div><button class="mini" id="btnAddRecurring">＋ 添加周期流水</button></div>
+  </details>`;
+}
 function renderFlowRows(){
   const m=ledger.months[activeMonth];
   if(!m.flows || !m.flows.length)
@@ -396,8 +414,8 @@ function renderFlowRows(){
     if(f.kind==="dividend" && f.holdingAmount!=null && f.holdingCurrency && f.holdingCurrency!==f.currency)
       amt = moneyCell(f.holdingAmount,f.holdingCurrency) + ' <span class="mut">→</span> ' + amt;
     if(f.qty!=null&&f.price!=null) amt += ` <span class="mut">(${fmtQuantity(f.qty)} × ${fmtPrice(f.price)})</span>`;
-    const typeCell = escapeHTML(ft?ft.name:f.kind) + (f.subcat?` <span class="mut">/${escapeHTML(f.subcat)}</span>`:"");
-    const direction=(f.kind==="income"||f.kind==="dividend"||f.kind==="sell")?"flow-in":((f.kind==="expense"||f.kind==="buy"||f.kind==="repay")?"flow-out":"");
+    const typeCell = escapeHTML(ft?ft.name:f.kind) + (f.recurringId?` <span class="badge" title="由周期流水规则生成">↻</span>`:"") + (f.subcat?` <span class="mut">/${escapeHTML(f.subcat)}</span>`:"");
+    const direction=f.kind==="valuation"?(Number(f.amount||0)>=0?"flow-in":"flow-out"):(f.kind==="income"||f.kind==="dividend"||f.kind==="sell")?"flow-in":((f.kind==="expense"||f.kind==="buy"||f.kind==="repay")?"flow-out":"");
     return `<tr>
       <td>${escapeHTML(f.date||"-")}</td>
       <td class="${direction}">${typeCell}</td>
@@ -405,7 +423,7 @@ function renderFlowRows(){
       <td>${toTxt}</td>
       <td class="num ${direction}">${amt}</td>
       <td>${escapeHTML(f.note||"")}</td>
-      <td class="ops"><button class="mini" data-fedit="${escapeAttr(f.id)}">编辑</button><button class="mini danger" data-fdel="${escapeAttr(f.id)}">删</button></td>
+      <td class="ops">${f.kind==="valuation"?"":`<button class="mini" data-fedit="${escapeAttr(f.id)}">编辑</button>`}<button class="mini danger" data-fdel="${escapeAttr(f.id)}">删</button></td>
     </tr>`;
   }).join("");
 }
@@ -439,6 +457,13 @@ function bindFxBar(){
 // 自动获取当月汇率(Frankfurter, 免key, 支持历史)。目标日=当月末与今天取较早者
 
 // ---------- 资产录入/编辑对话框 ----------
+function manualValuationDate(monthKey){
+  const today=new Date().toISOString().slice(0,10);
+  if(today.slice(0,7)===monthKey) return today;
+  const [year,month]=monthKey.split("-").map(Number);
+  return `${monthKey}-${String(new Date(year,month,0).getDate()).padStart(2,"0")}`;
+}
+function supportsManualValuationFlow(row){ return ["cash","liability","fixed"].includes(row?.cls); }
 function openAssetDialog(editIdx){
   const m = ledger.months[activeMonth];
   refreshAssetSuggestions();
@@ -519,7 +544,13 @@ $("btnAssetOk").addEventListener("click",async()=>{
         if(quoteChanged&&m.openingPrices) delete m.openingPrices[row.id];
         if(priceChanged){ row.manualPriceAt=activeMonth; if(row.auto) row.priceStatus="manual"; }
       }else{
-        row.value=nextPrice;
+        const adjustment=nextPrice-Number(row.value||0);
+        if(supportsManualValuationFlow(row)&&Math.abs(adjustment)>0.000001){
+          const rec={id:uid("f"),kind:"valuation",date:manualValuationDate(activeMonth),toAssetId:row.id,
+            amount:adjustment,currency:row.currency||"CNY",note:"手工估值调整"};
+          m.flows.push(rec);
+          applyFlow(rec,+1);
+        }else row.value=nextPrice;
         if(row.cls==="fund"||row.cls==="fixed") row.manualPriceAt=activeMonth;
       }
     });

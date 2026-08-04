@@ -253,6 +253,35 @@
   </div>
 </div>
 
+<!-- 周期流水规则 -->
+<div id="recurringDialog" class="modal" hidden>
+  <div class="modal-box">
+    <h3 id="recurringDlgTitle">添加周期流水</h3>
+    <div class="grid2">
+      <label class="fld">类型
+        <select id="rdKind">
+          <option value="income">收入</option>
+          <option value="expense">支出</option>
+          <option value="transfer">转账</option>
+          <option value="repay">还款</option>
+        </select>
+      </label>
+      <label class="fld">每月日期 <input id="rdDay" type="number" min="1" max="31" step="1" /></label>
+    </div>
+    <div class="grid2">
+      <label class="fld"><span id="rdFromLabel">流出账户</span> <span id="rd-from-wrap"></span></label>
+      <label class="fld"><span id="rdToLabel">流入账户</span> <span id="rd-to-wrap"></span></label>
+    </div>
+    <label class="fld">金额 <input id="rdAmount" type="text" inputmode="decimal" placeholder="支持 1000+200*3" /></label>
+    <label class="fld" id="rd-subcat">分类 <input id="rdSubcat" placeholder="如 工资/房租/订阅" list="subcatList" /></label>
+    <label class="fld">备注 <input id="rdNote" placeholder="可空" /></label>
+    <div class="modal-actions">
+      <button id="btnRecurringCancel">取消</button>
+      <button id="btnRecurringOk" class="primary">确定</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /*__INLINE_JS__*/
 </script>

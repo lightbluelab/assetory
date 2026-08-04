@@ -98,6 +98,7 @@ async function useHandle(handle, {isNew, directory}={}){
   }
   // 文件解析、密码验证和结构迁移全部成功后，才切换当前运行状态。
   ledger=nextLedger;
+  const recurringBackfill=isNew?{created:0}:backfillRecurringFlows();
   encryptionKey=nextEncryptionKey;
   encryptionMeta=nextEncryptionMeta;
   fileHandle=handle;
@@ -108,7 +109,7 @@ async function useHandle(handle, {isNew, directory}={}){
   await idbSet(ledger.name, handle);      // 句柄持久化,便于刷新后重开
   if(directoryHandle) await idbSet(`dir:${ledger.name}`,directoryHandle);
   localStorage.setItem(LS_ACTIVE, ledger.name);
-  if(isNew) await persist();
+  if(isNew||recurringBackfill.created) await persist();
   renderAll();
 }
 
@@ -140,9 +141,10 @@ async function importFallbackFile(file){
     }
     const nextLedger=migrateLedger(obj);
     ledger=nextLedger; encryptionKey=nextEncryptionKey; encryptionMeta=nextEncryptionMeta;
+    const recurringBackfill=backfillRecurringFlows();
     fileHandle=null; directoryHandle=null; demoMode=false; activeMonth=null; balanceEditMode=false; flowEditMode=false;
     renderAll();
-    setStatus(`已导入 ${file.name}；请使用「备份」下载编辑后的 JSON`);
+    setStatus(`已导入 ${file.name}${recurringBackfill.created?`；已补齐 ${recurringBackfill.created} 条周期流水`:""}；请使用「备份」下载编辑后的 JSON`);
   }catch(e){ alert("导入失败: "+e.message); }
 }
 
@@ -151,7 +153,7 @@ async function loadDemoLedger(){
     const res=await fetch(new URL("./demo-ledger.json",location.href),{cache:"no-store"});
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const obj=await res.json();
-    ledger=migrateLedger(obj); fileHandle=null; directoryHandle=null; encryptionKey=null; encryptionMeta=null;
+    ledger=migrateLedger(obj); backfillRecurringFlows(); fileHandle=null; directoryHandle=null; encryptionKey=null; encryptionMeta=null;
     demoMode=true; activeMonth=Object.keys(obj.months).sort().at(-1)||null; balanceEditMode=false; flowEditMode=false;
     renderAll();
     setStatus("正在体验示例账本；编辑后请下载示例副本或新建自己的账本");

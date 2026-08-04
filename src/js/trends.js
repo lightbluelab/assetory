@@ -63,6 +63,10 @@ function assetProfitAttribution(mKey,prevKey){
     }else if(f.kind==="repay"){
       addExpected(f.fromAssetId,-value); addExpected(f.toAssetId,+value);
       addExpectedNative(f.fromAssetId,-flowAmount(f)); addExpectedNative(f.toAssetId,-flowAmount(f));
+    }else if(f.kind==="valuation"){
+      const target=assetByFlow(m,f,"to");
+      const signed=value*(ASSET_CLASSES[target?.cls]?.sign||1);
+      addExpected(f.toAssetId,signed); addExpectedNative(f.toAssetId,flowAmount(f));
     }
   });
   const curById=new Map(m.balance.map(row=>[row.id,row]));
@@ -90,6 +94,10 @@ function profitAttribution(mKey,prevKey){
     const value=flowCNY(f,mKey);
     if(f.kind==="income") deltas["收入"]=(deltas["收入"]||0)+value;
     else if(f.kind==="expense") deltas["支出"]=(deltas["支出"]||0)-value;
+    else if(f.kind==="valuation"){
+      const target=assetByFlow(ledger.months[mKey],f,"to");
+      deltas["其它贡献"]=(deltas["其它贡献"]||0)+value*(ASSET_CLASSES[target?.cls]?.sign||1);
+    }
   });
   asset.entries.forEach(({row,pnl})=>{
     const group=contributionGroup(row);

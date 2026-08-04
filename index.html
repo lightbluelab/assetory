@@ -213,9 +213,9 @@ thead th{background:transparent;color:var(--muted);font-weight:600;font-size:12p
 .fld[hidden]{display:none}
 .fld input{width:100%;margin-top:6px}
 .grid2>.fld{min-width:0}
-#flowDialog .grid2 select,#flowDialog .grid2 input{width:100%}
-#fd-from-wrap,#fd-to-wrap{display:block;min-width:0;margin-top:6px}
-#fd-from-wrap select,#fd-to-wrap select,#fd-from-wrap input,#fd-to-wrap input{width:100%;max-width:100%}
+#flowDialog .grid2 select,#flowDialog .grid2 input,#recurringDialog .grid2 select,#recurringDialog .grid2 input{width:100%}
+#fd-from-wrap,#fd-to-wrap,#rd-from-wrap,#rd-to-wrap{display:block;min-width:0;margin-top:6px}
+#fd-from-wrap select,#fd-to-wrap select,#fd-from-wrap input,#fd-to-wrap input,#rd-from-wrap select,#rd-to-wrap select{width:100%;max-width:100%}
 .mut{color:var(--muted);font-size:12px}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -224,6 +224,16 @@ thead th{background:transparent;color:var(--muted);font-weight:600;font-size:12p
 .fld.inline input{width:auto;margin:0}
 .tbl-head{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
 .tbl-head h3{margin:0}
+.recurring-manager{margin:0 0 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel2)}
+.recurring-manager summary{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;cursor:pointer;list-style:none;color:var(--text);font-size:13px;font-weight:600}
+.recurring-manager summary::-webkit-details-marker{display:none}
+.recurring-manager[open] summary{border-bottom:1px solid var(--line)}
+.recurring-content{padding:10px 11px}
+.recurring-list{display:grid;gap:7px;margin-bottom:9px}
+.recurring-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.recurring-row:last-child{border-bottom:0}
+.recurring-row-main{min-width:0;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}
+.recurring-actions{display:flex;gap:5px;flex:none}
 button.mini{padding:4px 10px;font-size:12px}
 .ops{display:flex;gap:4px;justify-content:flex-end}
 table.balance td.ops{white-space:nowrap}
@@ -618,6 +628,35 @@ tr.nettotal td{background:var(--panel2);font-weight:700;font-size:15px}
   </div>
 </div>
 
+<!-- 周期流水规则 -->
+<div id="recurringDialog" class="modal" hidden>
+  <div class="modal-box">
+    <h3 id="recurringDlgTitle">添加周期流水</h3>
+    <div class="grid2">
+      <label class="fld">类型
+        <select id="rdKind">
+          <option value="income">收入</option>
+          <option value="expense">支出</option>
+          <option value="transfer">转账</option>
+          <option value="repay">还款</option>
+        </select>
+      </label>
+      <label class="fld">每月日期 <input id="rdDay" type="number" min="1" max="31" step="1" /></label>
+    </div>
+    <div class="grid2">
+      <label class="fld"><span id="rdFromLabel">流出账户</span> <span id="rd-from-wrap"></span></label>
+      <label class="fld"><span id="rdToLabel">流入账户</span> <span id="rd-to-wrap"></span></label>
+    </div>
+    <label class="fld">金额 <input id="rdAmount" type="text" inputmode="decimal" placeholder="支持 1000+200*3" /></label>
+    <label class="fld" id="rd-subcat">分类 <input id="rdSubcat" placeholder="如 工资/房租/订阅" list="subcatList" /></label>
+    <label class="fld">备注 <input id="rdNote" placeholder="可空" /></label>
+    <div class="modal-actions">
+      <button id="btnRecurringCancel">取消</button>
+      <button id="btnRecurringOk" class="primary">确定</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ==================== core module ====================
 "use strict";
@@ -650,7 +689,10 @@ const FLOW_TYPES = {
   buy:      { name:"买入", from:"cash",      to:"holding",   needQtyPrice:true, newHolding:true  },
   sell:     { name:"卖出", from:"holding",   to:"cash",      needQtyPrice:true, newHolding:true },
   repay:    { name:"还款", from:"cash",      to:"liability", needQtyPrice:false },
+  // 仅由资产盘点自动生成，不提供给普通流水录入。amount 可正可负。
+  valuation:{ name:"手工估值调整", from:"free", to:"asset", needQtyPrice:false, internal:true },
 };
+const RECURRING_FLOW_KINDS = new Set(["income","expense","transfer","repay"]);
 const HAS_FS = ("showOpenFilePicker" in window && "showDirectoryPicker" in window);
 const IDB_DB = "familyLedgerDB", IDB_STORE = "handles";
 
@@ -750,6 +792,27 @@ function assertLedgerShape(data){
 function migrateLedger(data){
   assertLedgerShape(data);
   data.name=textValue(data.name||"未命名资产追踪",80);
+  const recurringIds=new Set();
+  data.recurringFlows=Array.isArray(data.recurringFlows)?data.recurringFlows:[];
+  data.recurringFlows=data.recurringFlows.map(rule=>{
+    if(!rule||typeof rule!=="object"||!RECURRING_FLOW_KINDS.has(rule.kind)) return null;
+    const id=textValue(rule.id,100)||uid("r");
+    if(recurringIds.has(id)) return null;
+    recurringIds.add(id);
+    const day=Math.max(1,Math.min(31,Math.trunc(Number(rule.day)||1)));
+    const amount=Number(rule.amount);
+    if(!Number.isFinite(amount)||amount<=0) return null;
+    const startMonth=isValidMonthKey(rule.startMonth)?rule.startMonth:null;
+    const clean={id,kind:rule.kind,day,amount,startMonth,
+      fromAssetId:textValue(rule.fromAssetId,100),toAssetId:textValue(rule.toAssetId,100),
+      note:textValue(rule.note,240),subcat:textValue(rule.subcat,80)};
+    if(!clean.fromAssetId) delete clean.fromAssetId;
+    if(!clean.toAssetId) delete clean.toAssetId;
+    if(!clean.startMonth) delete clean.startMonth;
+    if(!clean.note) delete clean.note;
+    if(!clean.subcat) delete clean.subcat;
+    return clean;
+  }).filter(Boolean);
   Object.entries(data.months).forEach(([key,month])=>{
     month.balance=Array.isArray(month.balance)?month.balance:[];
     month.flows=Array.isArray(month.flows)?month.flows:[];
@@ -810,7 +873,7 @@ function migrateLedger(data){
         }
         delete flow[idxKey];
       });
-      ["fromText","toText","note","subcat","currency","toCurrency","holdingCurrency"].forEach(key=>{ if(flow[key]!=null) flow[key]=textValue(flow[key]); });
+      ["fromText","toText","note","subcat","currency","toCurrency","holdingCurrency","recurringId"].forEach(key=>{ if(flow[key]!=null) flow[key]=textValue(flow[key]); });
     });
     const validIds=new Set(month.balance.map(row=>row.id));
     month.flows.forEach(flow=>{
@@ -899,6 +962,8 @@ function describeMonthChanges(before,after,fallback){
   beforeAssets.forEach((row,id)=>{ if(!afterAssets.has(id)) details.push(`删除资产「${row.name}」`); });
   const currencies=new Set([...Object.keys(before.fxRates||{}),...Object.keys(after.fxRates||{})]);
   currencies.forEach(currency=>{
+    // `_status`、`_date` 等是自动报价的内部元数据，不属于用户可读的汇率变更。
+    if(currency.startsWith("_")) return;
     const old=Number(before.fxRates?.[currency]??1), value=Number(after.fxRates?.[currency]??1);
     if(old!==value) details.push(`${currency} 汇率 ${fmtPrice(old)} → ${fmtPrice(value)}`);
   });
@@ -1049,7 +1114,8 @@ function refreshAssetSuggestions(){
 function newLedger(name){
   return {
     schema:"family-ledger-v2", name, createdAt:new Date().toISOString(),
-    months:{}   // 汇率下沉到每个月(与时间相关)
+    months:{},  // 汇率下沉到每个月(与时间相关)
+    recurringFlows:[]
   };
 }
 function newMonth(){
@@ -1239,6 +1305,7 @@ async function useHandle(handle, {isNew, directory}={}){
   }
   // 文件解析、密码验证和结构迁移全部成功后，才切换当前运行状态。
   ledger=nextLedger;
+  const recurringBackfill=isNew?{created:0}:backfillRecurringFlows();
   encryptionKey=nextEncryptionKey;
   encryptionMeta=nextEncryptionMeta;
   fileHandle=handle;
@@ -1249,7 +1316,7 @@ async function useHandle(handle, {isNew, directory}={}){
   await idbSet(ledger.name, handle);      // 句柄持久化,便于刷新后重开
   if(directoryHandle) await idbSet(`dir:${ledger.name}`,directoryHandle);
   localStorage.setItem(LS_ACTIVE, ledger.name);
-  if(isNew) await persist();
+  if(isNew||recurringBackfill.created) await persist();
   renderAll();
 }
 
@@ -1281,9 +1348,10 @@ async function importFallbackFile(file){
     }
     const nextLedger=migrateLedger(obj);
     ledger=nextLedger; encryptionKey=nextEncryptionKey; encryptionMeta=nextEncryptionMeta;
+    const recurringBackfill=backfillRecurringFlows();
     fileHandle=null; directoryHandle=null; demoMode=false; activeMonth=null; balanceEditMode=false; flowEditMode=false;
     renderAll();
-    setStatus(`已导入 ${file.name}；请使用「备份」下载编辑后的 JSON`);
+    setStatus(`已导入 ${file.name}${recurringBackfill.created?`；已补齐 ${recurringBackfill.created} 条周期流水`:""}；请使用「备份」下载编辑后的 JSON`);
   }catch(e){ alert("导入失败: "+e.message); }
 }
 
@@ -1292,7 +1360,7 @@ async function loadDemoLedger(){
     const res=await fetch(new URL("./demo-ledger.json",location.href),{cache:"no-store"});
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const obj=await res.json();
-    ledger=migrateLedger(obj); fileHandle=null; directoryHandle=null; encryptionKey=null; encryptionMeta=null;
+    ledger=migrateLedger(obj); backfillRecurringFlows(); fileHandle=null; directoryHandle=null; encryptionKey=null; encryptionMeta=null;
     demoMode=true; activeMonth=Object.keys(obj.months).sort().at(-1)||null; balanceEditMode=false; flowEditMode=false;
     renderAll();
     setStatus("正在体验示例账本；编辑后请下载示例副本或新建自己的账本");
@@ -1437,6 +1505,7 @@ function applyFlowToBalance(balance,f,sign){
     case "buy": addVal(f.fromAssetId,-amt*sign); addHolding(f.toAssetId,q,holdAmt,+sign); addCost(f.toAssetId,(Number(f.costAddedCNY||0)-Number(f.costReductionCNY||0))*sign); break;
     case "sell": addVal(f.toAssetId,+amt*sign); addHolding(f.fromAssetId,q,holdAmt,-sign); addCost(f.fromAssetId,(Number(f.costAddedCNY||0)-Number(f.costReductionCNY||0))*sign); break;
     case "repay": addVal(f.fromAssetId,-amt*sign); addVal(f.toAssetId,-amt*sign); break;
+    case "valuation": addVal(f.toAssetId,+amt*sign); break;
   }
 }
 // sign=+1 应用, -1 回滚
@@ -1568,6 +1637,72 @@ function isClosed(r){
 }
 function findFlow(id){ const m=ledger.months[activeMonth]; const i=m.flows.findIndex(x=>x.id===id); return {m,i,f:m.flows[i]}; }
 
+// ---------- 周期流水：规则只保存模板，生成后是普通流水，可独立编辑或删除 ----------
+function recurringDate(monthKey,day){
+  const [year,month]=monthKey.split("-").map(Number);
+  const lastDay=new Date(year,month,0).getDate();
+  return `${monthKey}-${String(Math.min(Math.max(1,Number(day)||1),lastDay)).padStart(2,"0")}`;
+}
+function recurringRuleLabel(rule){
+  const type=FLOW_TYPES[rule.kind]?.name||"周期流水";
+  const from=rule.fromAssetId?assetLabel(rule.fromAssetId):"";
+  const to=rule.toAssetId?assetLabel(rule.toAssetId):"";
+  return `${type} · 每月 ${rule.day} 日${from||to?` · ${from}${from&&to?" → ":""}${to}`:""}`;
+}
+function recurringRuleFlow(rule,monthKey,month){
+  const source=rule.fromAssetId?month.balance.find(row=>row.id===rule.fromAssetId):null;
+  const target=rule.toAssetId?month.balance.find(row=>row.id===rule.toAssetId):null;
+  if((rule.kind==="income"&&!target)||(rule.kind==="expense"&&!source)||(rule.kind==="transfer"&&(!source||!target))||(rule.kind==="repay"&&(!source||!target))) return null;
+  const rec={id:uid("f"),recurringId:rule.id,kind:rule.kind,date:recurringDate(monthKey,rule.day),amount:Number(rule.amount),note:rule.note||""};
+  if(rule.subcat) rec.subcat=rule.subcat;
+  if(source) setFlowAsset(rec,"from",source);
+  if(target) setFlowAsset(rec,"to",target);
+  rec.currency=(source||target)?.currency||"CNY";
+  if(rec.kind==="income"){
+    rec.nonCashIncome=target.cls!=="cash";
+    rec.incomeAssetMode="value";
+  }
+  return rec;
+}
+function applyRecurringFlowsToMonth(monthKey){
+  const month=ledger.months[monthKey];
+  if(!month) return {created:0,skipped:0};
+  let created=0, skipped=0;
+  (ledger.recurringFlows||[]).forEach(rule=>{
+    if(rule.startMonth&&monthKey<rule.startMonth) return;
+    if((month.flows||[]).some(flow=>flow.recurringId===rule.id)) return;
+    const rec=recurringRuleFlow(rule,monthKey,month);
+    if(!rec){ skipped++; return; }
+    try{
+      validateFlowCapacity(month,rec);
+      refreshFlowCostMetadata(month,rec,monthKey);
+      month.flows.push(rec);
+      applyFlowToBalance(month.balance,rec,+1);
+      created++;
+    }catch(error){ skipped++; console.warn("周期流水未生成",rule.id,error); }
+  });
+  return {created,skipped};
+}
+function applyRecurringFlowsFromMonth(startMonth){
+  const total={created:0,skipped:0};
+  monthKeys().filter(monthKey=>monthKey>=startMonth).forEach(monthKey=>{
+    const result=applyRecurringFlowsToMonth(monthKey);
+    total.created+=result.created; total.skipped+=result.skipped;
+    // transact 会记录当前月；已经存在的后续月份也需要保留变更记录。
+    if(monthKey!==activeMonth&&result.created) markMonthChanged(monthKey,"应用周期流水",[`新增 ${result.created} 条周期流水`]);
+  });
+  return total;
+}
+function backfillRecurringFlows(){
+  const total={created:0,skipped:0};
+  monthKeys().forEach(monthKey=>{
+    const result=applyRecurringFlowsToMonth(monthKey);
+    total.created+=result.created; total.skipped+=result.skipped;
+    if(result.created) markMonthChanged(monthKey,"补齐周期流水",[`新增 ${result.created} 条周期流水`]);
+  });
+  return total;
+}
+
 // ---------- 对账: 期末 = 期初 + 流水 + 价格更新, 找出不符合预期的变更 ----------
 function reconcile(mKey){
   const m=ledger.months[mKey];
@@ -1589,6 +1724,7 @@ function reconcile(mKey){
       case "sell": { const c=f.toAssetId; if(c)dVal[c]=(dVal[c]||0)+a;
                      const hold=f.fromAssetId; if(hold){ if(isFixed(hold)) dVal[hold]=(dVal[hold]||0)-h; else dQty[hold]=(dQty[hold]||0)-q; } break; }
       case "repay":{ const c=f.fromAssetId,l=f.toAssetId; if(c)dVal[c]=(dVal[c]||0)-a; if(l)dVal[l]=(dVal[l]||0)-a; break; }
+      case "valuation":{ const id=f.toAssetId; if(id) dVal[id]=(dVal[id]||0)+a; break; }
     }
   });
   const EPS=0.01, issues=[];
@@ -1859,16 +1995,16 @@ function buildFlowDraft(){
   }else rec.currency=(from.asset||to.asset)?.currency||"CNY";
   return {rec,newAsset};
 }
-function refreshFlowCostMetadata(month,rec){
+function refreshFlowCostMetadata(month,rec,monthKey=activeMonth){
   delete rec.costAddedCNY; delete rec.costReductionCNY; delete rec.realizedPnlCNY;
   if(rec.kind==="income"&&rec.nonCashIncome===true){
     const target=assetByFlow(month,rec,"to");
-    if(target&&target.cls!=="cash") rec.costAddedCNY=Math.abs(flowCNY(rec,activeMonth));
+    if(target&&target.cls!=="cash") rec.costAddedCNY=Math.abs(flowCNY(rec,monthKey));
   }else if(rec.kind==="buy"){
     const hold=assetByFlow(month,rec,"to");
     if(!hold) return;
-    if(hold.cls!=="stock"){ rec.costAddedCNY=flowCNY(rec,activeMonth); return; }
-    const position=Number(hold.qty||0), quantity=Number(rec.qty||0), trade=flowCNY(rec,activeMonth);
+    if(hold.cls!=="stock"){ rec.costAddedCNY=flowCNY(rec,monthKey); return; }
+    const position=Number(hold.qty||0), quantity=Number(rec.qty||0), trade=flowCNY(rec,monthKey);
     if(position>=0){ rec.costAddedCNY=trade; return; }
     const cover=Math.min(quantity,-position), opened=quantity-cover;
     const coverCost=trade*cover/quantity, reduction=Number(hold.costBasisCNY||0)*cover/(-position);
@@ -1881,10 +2017,10 @@ function refreshFlowCostMetadata(month,rec){
     if(hold.cls!=="stock"){
       const held=Math.abs(Number(hold.value||0)), sold=Math.abs(Number(rec.holdingAmount!=null?rec.holdingAmount:rec.amount||0));
       const reduction=Number(hold.costBasisCNY||0)*(held>0?Math.min(1,sold/held):0);
-      rec.costReductionCNY=reduction; rec.realizedPnlCNY=flowCNY(rec,activeMonth)-reduction;
+      rec.costReductionCNY=reduction; rec.realizedPnlCNY=flowCNY(rec,monthKey)-reduction;
       return;
     }
-    const position=Number(hold.qty||0), quantity=Number(rec.qty||0), trade=flowCNY(rec,activeMonth);
+    const position=Number(hold.qty||0), quantity=Number(rec.qty||0), trade=flowCNY(rec,monthKey);
     if(position<=0){ rec.costAddedCNY=trade; rec.realizedPnlCNY=0; return; }
     const closed=Math.min(quantity,position), opened=quantity-closed;
     const closedProceeds=trade*closed/quantity, reduction=Number(hold.costBasisCNY||0)*closed/position;
@@ -1911,6 +2047,95 @@ function removeUnreferencedOpenedAssets(month){
   const refs=new Set(month.flows.flatMap(flow=>[flow.fromAssetId,flow.toAssetId]).filter(Boolean));
   month.balance=month.balance.filter(row=>!row.openedThisMonth||refs.has(row.id));
 }
+
+// ---------- 周期流水规则 ----------
+function recurringRuleCurrency(rule){
+  const month=ledger.months[activeMonth];
+  const row=month?.balance.find(asset=>asset.id===(rule.fromAssetId||rule.toAssetId));
+  return row?.currency||"CNY";
+}
+function recurringAssetOptions(kind,side,selected){
+  const type=kind==="repay"&&side==="to"?"liability":"cash";
+  return assetOptions(type,selected);
+}
+function refreshRecurringSubcatList(){
+  const kind=$("rdKind").value, values=new Set();
+  (ledger.recurringFlows||[]).forEach(rule=>{ if(rule.kind===kind&&rule.subcat) values.add(rule.subcat); });
+  Object.values(ledger.months).forEach(month=>(month.flows||[]).forEach(flow=>{ if(flow.kind===kind&&flow.subcat) values.add(flow.subcat); }));
+  $("subcatList").innerHTML=[...values].map(value=>`<option value="${escapeAttr(value)}">`).join("");
+}
+function buildRecurringFields(rule){
+  const kind=$("rdKind").value;
+  const labels={income:["来源","收款账户"],expense:["付款账户","去向"],transfer:["转出账户","转入账户"],repay:["还款账户","负债账户"]}[kind];
+  $("rdFromLabel").textContent=labels[0]; $("rdToLabel").textContent=labels[1];
+  const from=kind==="income"?"":recurringAssetOptions(kind,"from",rule?.fromAssetId);
+  const to=kind==="expense"?"":recurringAssetOptions(kind,"to",rule?.toAssetId);
+  $("rd-from-wrap").innerHTML=from?`<select id="rdFrom">${from}</select>`:`<span class="mut">无</span>`;
+  $("rd-to-wrap").innerHTML=to?`<select id="rdTo">${to}</select>`:`<span class="mut">无</span>`;
+  $("rd-subcat").style.display=(kind==="income"||kind==="expense")?"":"none";
+  refreshRecurringSubcatList();
+}
+function openRecurringDialog(id){
+  const rule=id?(ledger.recurringFlows||[]).find(item=>item.id===id):null;
+  if(id&&!rule){ alert("周期流水不存在"); return; }
+  const draft=rule||{kind:"expense",day:1,amount:"",note:"",subcat:""};
+  $("recurringDlgTitle").textContent=rule?"编辑周期流水":"添加周期流水";
+  $("rdKind").value=draft.kind; $("rdDay").value=draft.day; $("rdAmount").value=draft.amount;
+  $("rdSubcat").value=draft.subcat||""; $("rdNote").value=draft.note||"";
+  $("recurringDialog").dataset.edit=rule?.id||"";
+  buildRecurringFields(draft);
+  $("recurringDialog").hidden=false;
+}
+function buildRecurringDraft(){
+  const kind=$("rdKind").value;
+  if(!RECURRING_FLOW_KINDS.has(kind)) throw new Error("请选择有效的周期流水类型");
+  const day=Math.trunc(Number($("rdDay").value));
+  if(!Number.isInteger(day)||day<1||day>31) throw new Error("每月日期必须在 1 到 31 之间");
+  const amount=parseArithmetic($("rdAmount").value,"金额");
+  if(!Number.isFinite(amount)||amount<=0) throw new Error("金额必须大于 0");
+  const fromId=$("rdFrom")?.value||"", toId=$("rdTo")?.value||"";
+  const from=fromId?assetById(fromId):null, to=toId?assetById(toId):null;
+  if((kind!=="income"&&!from)||(kind!=="expense"&&!to)) throw new Error("请选择有效账户");
+  if(kind==="transfer"&&fromId===toId) throw new Error("转出与转入账户不能相同");
+  if((kind==="transfer"||kind==="repay")&&from.currency!==to.currency) throw new Error("周期转账和还款暂不支持跨币种账户");
+  const rec={kind,day,amount,startMonth:activeMonth,note:textValue($("rdNote").value,240)};
+  if(fromId) rec.fromAssetId=fromId;
+  if(toId) rec.toAssetId=toId;
+  if(kind==="income"||kind==="expense") rec.subcat=textValue($("rdSubcat").value,80);
+  return rec;
+}
+function bindRecurringFlowManager(){
+  const add=$("btnAddRecurring"); if(add) add.addEventListener("click",()=>openRecurringDialog(null));
+  document.querySelectorAll("[data-redit]").forEach(button=>button.addEventListener("click",()=>openRecurringDialog(button.dataset.redit)));
+  document.querySelectorAll("[data-rdel]").forEach(button=>button.addEventListener("click",async()=>{
+    const rule=(ledger.recurringFlows||[]).find(item=>item.id===button.dataset.rdel);
+    if(!rule||!confirm(`删除周期流水规则「${recurringRuleLabel(rule)}」？已生成的历史流水不会删除。`)) return;
+    await transact("删除周期流水",()=>{ ledger.recurringFlows=ledger.recurringFlows.filter(item=>item.id!==rule.id); },{touch:false});
+  }));
+}
+$("rdKind").addEventListener("change",()=>buildRecurringFields(null));
+$("btnRecurringCancel").addEventListener("click",()=>{ $("recurringDialog").hidden=true; });
+$("btnRecurringOk").addEventListener("click",async()=>{
+  let draft;
+  try{ draft=buildRecurringDraft(); }catch(error){ alert(error.message); return; }
+  const editId=$("recurringDialog").dataset.edit;
+  const ok=await transact(`${editId?"修改":"添加"}周期流水`,()=>{
+    ledger.recurringFlows ||= [];
+    if(editId){
+      const index=ledger.recurringFlows.findIndex(rule=>rule.id===editId);
+      if(index<0) throw new Error("周期流水不存在");
+      draft.id=editId;
+      // 已生成的实际流水是历史记录；规则修改仅作用于之后新建的月份。
+      ledger.recurringFlows[index]=draft;
+    }else{
+      draft.id=uid("r"); ledger.recurringFlows.push(draft);
+      // 已经建立的后续月份也应立即获得规则对应的流水；recurringId 可防止重复生成。
+      applyRecurringFlowsFromMonth(activeMonth);
+    }
+  });
+  if(ok) $("recurringDialog").hidden=true;
+});
+
 $("btnFlowOk").addEventListener("click",async()=>{
   let draft;
   try{ draft=buildFlowDraft(); }catch(error){ alert(error.message); return; }
@@ -2241,6 +2466,10 @@ function assetProfitAttribution(mKey,prevKey){
     }else if(f.kind==="repay"){
       addExpected(f.fromAssetId,-value); addExpected(f.toAssetId,+value);
       addExpectedNative(f.fromAssetId,-flowAmount(f)); addExpectedNative(f.toAssetId,-flowAmount(f));
+    }else if(f.kind==="valuation"){
+      const target=assetByFlow(m,f,"to");
+      const signed=value*(ASSET_CLASSES[target?.cls]?.sign||1);
+      addExpected(f.toAssetId,signed); addExpectedNative(f.toAssetId,flowAmount(f));
     }
   });
   const curById=new Map(m.balance.map(row=>[row.id,row]));
@@ -2268,6 +2497,10 @@ function profitAttribution(mKey,prevKey){
     const value=flowCNY(f,mKey);
     if(f.kind==="income") deltas["收入"]=(deltas["收入"]||0)+value;
     else if(f.kind==="expense") deltas["支出"]=(deltas["支出"]||0)-value;
+    else if(f.kind==="valuation"){
+      const target=assetByFlow(ledger.months[mKey],f,"to");
+      deltas["其它贡献"]=(deltas["其它贡献"]||0)+value*(ASSET_CLASSES[target?.cls]?.sign||1);
+    }
   });
   asset.entries.forEach(({row,pnl})=>{
     const group=contributionGroup(row);
@@ -2668,6 +2901,7 @@ async function addMonth(){
   const previousActive=activeMonth; balanceEditMode=false; flowEditMode=false; activeMonth=k;
   const ok=await transact("添加月份",()=>{
     ledger.months[k]=month;
+    applyRecurringFlowsToMonth(k);
     // 在现有月份之间补建月份时，把原直接子月改为继承新月份，保持单一时间链。
     if(prev&&next&&ledger.months[next]?.copiedFrom===prev){
       ledger.months[next].copiedFrom=k;
@@ -2816,14 +3050,15 @@ function renderMonthPanel(){
     ${renderFxBar()}
     <div class="tbl-head" style="margin-top:24px">
       <h3>流水表 · ${activeMonth}</h3>
-      <div><button class="mini" id="btnFlowEdit">编辑</button><button class="primary mini" id="btnAddFlow">＋ 添加流水</button></div>
+      <div><button class="mini" id="btnRecurringToggle" type="button">周期流水</button><button class="mini" id="btnFlowEdit">编辑</button><button class="primary mini" id="btnAddFlow">＋ 添加流水</button></div>
     </div>
+    ${renderRecurringFlowManager()}
     ${renderFlowSummary()}
     <div class="table-wrap"><table class="flow">
       <thead><tr><th>日期</th><th>类型</th><th>流出方</th><th>流入方</th><th>金额</th><th>备注</th><th>操作</th></tr></thead>
       <tbody>${renderFlowRows()}</tbody>
     </table></div>
-    <p class="hint">收入、资产收益、支出、转账、买入、卖出、还款会自动同步修改上方资产负债表；删除流水会回滚其影响。</p>`;
+    <p class="hint">收入、资产收益、支出、转账、买入、卖出、还款和手工估值调整会自动同步修改上方资产负债表；删除流水会回滚其影响。</p>`;
 
   // 事件
   const demoBackup=$("btnDemoBackup"); if(demoBackup) demoBackup.addEventListener("click",()=>backupCurrentLedger());
@@ -2860,6 +3095,7 @@ function renderMonthPanel(){
         if(month.openingPrices) delete month.openingPrices[row.id];
         if(key!==activeMonth) markMonthChanged(key,`删除资产：${row.name}及关联流水`);
       });
+      ledger.recurringFlows=(ledger.recurringFlows||[]).filter(rule=>rule.fromAssetId!==row.id&&rule.toAssetId!==row.id);
       // 后续月份的期初可能仍带有被删除流水造成的现金影响，沿继承链重建。
       let source=activeMonth;
       while(true){
@@ -2873,8 +3109,13 @@ function renderMonthPanel(){
   el.querySelectorAll("[data-price]").forEach(b=>b.addEventListener("click",()=>updateOnePrice(+b.dataset.price)));
   el.querySelectorAll("[data-price-edit]").forEach(b=>b.addEventListener("click",()=>openPriceEditor(+b.dataset.priceEdit)));
   $("btnAddFlow").addEventListener("click",()=>openFlowDialog(null));
+  $("btnRecurringToggle").addEventListener("click",()=>{
+    const panel=$("recurringManager");
+    if(panel) panel.open=!panel.open;
+  });
   el.querySelectorAll("[data-fedit]").forEach(b=>b.addEventListener("click",()=>openFlowDialog(b.dataset.fedit)));
   el.querySelectorAll("[data-fdel]").forEach(b=>b.addEventListener("click",()=>deleteFlow(b.dataset.fdel)));
+  bindRecurringFlowManager();
   bindFxBar();
   const bn=$("btnSyncNext"); if(bn) bn.addEventListener("click",()=>{ if(confirm("将本月期末同步为下月期初并重算下月？")) syncToNext(activeMonth); });
   const ba=$("btnSyncAll"); if(ba) ba.addEventListener("click",()=>{ if(confirm("沿拷贝链把改动同步到后续所有月份并重算？")) syncToAll(activeMonth); });
@@ -2951,6 +3192,16 @@ function renderFlowSummary(){
     </div>
   </div>`;
 }
+function renderRecurringFlowManager(){
+  const rules=ledger.recurringFlows||[];
+  const rows=rules.map(rule=>`<div class="recurring-row">
+    <div class="recurring-row-main"><strong>${escapeHTML(recurringRuleLabel(rule))}</strong><span class="mut">${moneyCell(rule.amount,recurringRuleCurrency(rule))}${rule.note?` · ${escapeHTML(rule.note)}`:""}</span></div>
+    <div class="recurring-actions"><button class="mini" data-redit="${escapeAttr(rule.id)}">编辑</button><button class="mini danger" data-rdel="${escapeAttr(rule.id)}">删</button></div>
+  </div>`).join("");
+  return `<details id="recurringManager" class="recurring-manager"><summary>周期流水 <span class="mut">${rules.length?`${rules.length} 条规则`:"未设置"}</span></summary>
+    <div class="recurring-content"><div class="recurring-list">${rows||`<div class="mut">暂无周期流水规则。</div>`}</div><button class="mini" id="btnAddRecurring">＋ 添加周期流水</button></div>
+  </details>`;
+}
 function renderFlowRows(){
   const m=ledger.months[activeMonth];
   if(!m.flows || !m.flows.length)
@@ -2964,8 +3215,8 @@ function renderFlowRows(){
     if(f.kind==="dividend" && f.holdingAmount!=null && f.holdingCurrency && f.holdingCurrency!==f.currency)
       amt = moneyCell(f.holdingAmount,f.holdingCurrency) + ' <span class="mut">→</span> ' + amt;
     if(f.qty!=null&&f.price!=null) amt += ` <span class="mut">(${fmtQuantity(f.qty)} × ${fmtPrice(f.price)})</span>`;
-    const typeCell = escapeHTML(ft?ft.name:f.kind) + (f.subcat?` <span class="mut">/${escapeHTML(f.subcat)}</span>`:"");
-    const direction=(f.kind==="income"||f.kind==="dividend"||f.kind==="sell")?"flow-in":((f.kind==="expense"||f.kind==="buy"||f.kind==="repay")?"flow-out":"");
+    const typeCell = escapeHTML(ft?ft.name:f.kind) + (f.recurringId?` <span class="badge" title="由周期流水规则生成">↻</span>`:"") + (f.subcat?` <span class="mut">/${escapeHTML(f.subcat)}</span>`:"");
+    const direction=f.kind==="valuation"?(Number(f.amount||0)>=0?"flow-in":"flow-out"):(f.kind==="income"||f.kind==="dividend"||f.kind==="sell")?"flow-in":((f.kind==="expense"||f.kind==="buy"||f.kind==="repay")?"flow-out":"");
     return `<tr>
       <td>${escapeHTML(f.date||"-")}</td>
       <td class="${direction}">${typeCell}</td>
@@ -2973,7 +3224,7 @@ function renderFlowRows(){
       <td>${toTxt}</td>
       <td class="num ${direction}">${amt}</td>
       <td>${escapeHTML(f.note||"")}</td>
-      <td class="ops"><button class="mini" data-fedit="${escapeAttr(f.id)}">编辑</button><button class="mini danger" data-fdel="${escapeAttr(f.id)}">删</button></td>
+      <td class="ops">${f.kind==="valuation"?"":`<button class="mini" data-fedit="${escapeAttr(f.id)}">编辑</button>`}<button class="mini danger" data-fdel="${escapeAttr(f.id)}">删</button></td>
     </tr>`;
   }).join("");
 }
@@ -3007,6 +3258,13 @@ function bindFxBar(){
 // 自动获取当月汇率(Frankfurter, 免key, 支持历史)。目标日=当月末与今天取较早者
 
 // ---------- 资产录入/编辑对话框 ----------
+function manualValuationDate(monthKey){
+  const today=new Date().toISOString().slice(0,10);
+  if(today.slice(0,7)===monthKey) return today;
+  const [year,month]=monthKey.split("-").map(Number);
+  return `${monthKey}-${String(new Date(year,month,0).getDate()).padStart(2,"0")}`;
+}
+function supportsManualValuationFlow(row){ return ["cash","liability","fixed"].includes(row?.cls); }
 function openAssetDialog(editIdx){
   const m = ledger.months[activeMonth];
   refreshAssetSuggestions();
@@ -3087,7 +3345,13 @@ $("btnAssetOk").addEventListener("click",async()=>{
         if(quoteChanged&&m.openingPrices) delete m.openingPrices[row.id];
         if(priceChanged){ row.manualPriceAt=activeMonth; if(row.auto) row.priceStatus="manual"; }
       }else{
-        row.value=nextPrice;
+        const adjustment=nextPrice-Number(row.value||0);
+        if(supportsManualValuationFlow(row)&&Math.abs(adjustment)>0.000001){
+          const rec={id:uid("f"),kind:"valuation",date:manualValuationDate(activeMonth),toAssetId:row.id,
+            amount:adjustment,currency:row.currency||"CNY",note:"手工估值调整"};
+          m.flows.push(rec);
+          applyFlow(rec,+1);
+        }else row.value=nextPrice;
         if(row.cls==="fund"||row.cls==="fixed") row.manualPriceAt=activeMonth;
       }
     });

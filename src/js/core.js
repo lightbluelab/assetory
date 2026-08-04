@@ -28,7 +28,10 @@ const FLOW_TYPES = {
   buy:      { name:"买入", from:"cash",      to:"holding",   needQtyPrice:true, newHolding:true  },
   sell:     { name:"卖出", from:"holding",   to:"cash",      needQtyPrice:true, newHolding:true },
   repay:    { name:"还款", from:"cash",      to:"liability", needQtyPrice:false },
+  // 仅由资产盘点自动生成，不提供给普通流水录入。amount 可正可负。
+  valuation:{ name:"手工估值调整", from:"free", to:"asset", needQtyPrice:false, internal:true },
 };
+const RECURRING_FLOW_KINDS = new Set(["income","expense","transfer","repay"]);
 const HAS_FS = ("showOpenFilePicker" in window && "showDirectoryPicker" in window);
 const IDB_DB = "familyLedgerDB", IDB_STORE = "handles";
 
@@ -128,6 +131,27 @@ function assertLedgerShape(data){
 function migrateLedger(data){
   assertLedgerShape(data);
   data.name=textValue(data.name||"未命名资产追踪",80);
+  const recurringIds=new Set();
+  data.recurringFlows=Array.isArray(data.recurringFlows)?data.recurringFlows:[];
+  data.recurringFlows=data.recurringFlows.map(rule=>{
+    if(!rule||typeof rule!=="object"||!RECURRING_FLOW_KINDS.has(rule.kind)) return null;
+    const id=textValue(rule.id,100)||uid("r");
+    if(recurringIds.has(id)) return null;
+    recurringIds.add(id);
+    const day=Math.max(1,Math.min(31,Math.trunc(Number(rule.day)||1)));
+    const amount=Number(rule.amount);
+    if(!Number.isFinite(amount)||amount<=0) return null;
+    const startMonth=isValidMonthKey(rule.startMonth)?rule.startMonth:null;
+    const clean={id,kind:rule.kind,day,amount,startMonth,
+      fromAssetId:textValue(rule.fromAssetId,100),toAssetId:textValue(rule.toAssetId,100),
+      note:textValue(rule.note,240),subcat:textValue(rule.subcat,80)};
+    if(!clean.fromAssetId) delete clean.fromAssetId;
+    if(!clean.toAssetId) delete clean.toAssetId;
+    if(!clean.startMonth) delete clean.startMonth;
+    if(!clean.note) delete clean.note;
+    if(!clean.subcat) delete clean.subcat;
+    return clean;
+  }).filter(Boolean);
   Object.entries(data.months).forEach(([key,month])=>{
     month.balance=Array.isArray(month.balance)?month.balance:[];
     month.flows=Array.isArray(month.flows)?month.flows:[];
@@ -188,7 +212,7 @@ function migrateLedger(data){
         }
         delete flow[idxKey];
       });
-      ["fromText","toText","note","subcat","currency","toCurrency","holdingCurrency"].forEach(key=>{ if(flow[key]!=null) flow[key]=textValue(flow[key]); });
+      ["fromText","toText","note","subcat","currency","toCurrency","holdingCurrency","recurringId"].forEach(key=>{ if(flow[key]!=null) flow[key]=textValue(flow[key]); });
     });
     const validIds=new Set(month.balance.map(row=>row.id));
     month.flows.forEach(flow=>{
@@ -277,6 +301,8 @@ function describeMonthChanges(before,after,fallback){
   beforeAssets.forEach((row,id)=>{ if(!afterAssets.has(id)) details.push(`删除资产「${row.name}」`); });
   const currencies=new Set([...Object.keys(before.fxRates||{}),...Object.keys(after.fxRates||{})]);
   currencies.forEach(currency=>{
+    // `_status`、`_date` 等是自动报价的内部元数据，不属于用户可读的汇率变更。
+    if(currency.startsWith("_")) return;
     const old=Number(before.fxRates?.[currency]??1), value=Number(after.fxRates?.[currency]??1);
     if(old!==value) details.push(`${currency} 汇率 ${fmtPrice(old)} → ${fmtPrice(value)}`);
   });
@@ -427,7 +453,8 @@ function refreshAssetSuggestions(){
 function newLedger(name){
   return {
     schema:"family-ledger-v2", name, createdAt:new Date().toISOString(),
-    months:{}   // 汇率下沉到每个月(与时间相关)
+    months:{},  // 汇率下沉到每个月(与时间相关)
+    recurringFlows:[]
   };
 }
 function newMonth(){

@@ -23,6 +23,7 @@ function applyFlowToBalance(balance,f,sign){
     case "buy": addVal(f.fromAssetId,-amt*sign); addHolding(f.toAssetId,q,holdAmt,+sign); addCost(f.toAssetId,(Number(f.costAddedCNY||0)-Number(f.costReductionCNY||0))*sign); break;
     case "sell": addVal(f.toAssetId,+amt*sign); addHolding(f.fromAssetId,q,holdAmt,-sign); addCost(f.fromAssetId,(Number(f.costAddedCNY||0)-Number(f.costReductionCNY||0))*sign); break;
     case "repay": addVal(f.fromAssetId,-amt*sign); addVal(f.toAssetId,-amt*sign); break;
+    case "valuation": addVal(f.toAssetId,+amt*sign); break;
   }
 }
 // sign=+1 应用, -1 回滚
@@ -154,6 +155,72 @@ function isClosed(r){
 }
 function findFlow(id){ const m=ledger.months[activeMonth]; const i=m.flows.findIndex(x=>x.id===id); return {m,i,f:m.flows[i]}; }
 
+// ---------- 周期流水：规则只保存模板，生成后是普通流水，可独立编辑或删除 ----------
+function recurringDate(monthKey,day){
+  const [year,month]=monthKey.split("-").map(Number);
+  const lastDay=new Date(year,month,0).getDate();
+  return `${monthKey}-${String(Math.min(Math.max(1,Number(day)||1),lastDay)).padStart(2,"0")}`;
+}
+function recurringRuleLabel(rule){
+  const type=FLOW_TYPES[rule.kind]?.name||"周期流水";
+  const from=rule.fromAssetId?assetLabel(rule.fromAssetId):"";
+  const to=rule.toAssetId?assetLabel(rule.toAssetId):"";
+  return `${type} · 每月 ${rule.day} 日${from||to?` · ${from}${from&&to?" → ":""}${to}`:""}`;
+}
+function recurringRuleFlow(rule,monthKey,month){
+  const source=rule.fromAssetId?month.balance.find(row=>row.id===rule.fromAssetId):null;
+  const target=rule.toAssetId?month.balance.find(row=>row.id===rule.toAssetId):null;
+  if((rule.kind==="income"&&!target)||(rule.kind==="expense"&&!source)||(rule.kind==="transfer"&&(!source||!target))||(rule.kind==="repay"&&(!source||!target))) return null;
+  const rec={id:uid("f"),recurringId:rule.id,kind:rule.kind,date:recurringDate(monthKey,rule.day),amount:Number(rule.amount),note:rule.note||""};
+  if(rule.subcat) rec.subcat=rule.subcat;
+  if(source) setFlowAsset(rec,"from",source);
+  if(target) setFlowAsset(rec,"to",target);
+  rec.currency=(source||target)?.currency||"CNY";
+  if(rec.kind==="income"){
+    rec.nonCashIncome=target.cls!=="cash";
+    rec.incomeAssetMode="value";
+  }
+  return rec;
+}
+function applyRecurringFlowsToMonth(monthKey){
+  const month=ledger.months[monthKey];
+  if(!month) return {created:0,skipped:0};
+  let created=0, skipped=0;
+  (ledger.recurringFlows||[]).forEach(rule=>{
+    if(rule.startMonth&&monthKey<rule.startMonth) return;
+    if((month.flows||[]).some(flow=>flow.recurringId===rule.id)) return;
+    const rec=recurringRuleFlow(rule,monthKey,month);
+    if(!rec){ skipped++; return; }
+    try{
+      validateFlowCapacity(month,rec);
+      refreshFlowCostMetadata(month,rec,monthKey);
+      month.flows.push(rec);
+      applyFlowToBalance(month.balance,rec,+1);
+      created++;
+    }catch(error){ skipped++; console.warn("周期流水未生成",rule.id,error); }
+  });
+  return {created,skipped};
+}
+function applyRecurringFlowsFromMonth(startMonth){
+  const total={created:0,skipped:0};
+  monthKeys().filter(monthKey=>monthKey>=startMonth).forEach(monthKey=>{
+    const result=applyRecurringFlowsToMonth(monthKey);
+    total.created+=result.created; total.skipped+=result.skipped;
+    // transact 会记录当前月；已经存在的后续月份也需要保留变更记录。
+    if(monthKey!==activeMonth&&result.created) markMonthChanged(monthKey,"应用周期流水",[`新增 ${result.created} 条周期流水`]);
+  });
+  return total;
+}
+function backfillRecurringFlows(){
+  const total={created:0,skipped:0};
+  monthKeys().forEach(monthKey=>{
+    const result=applyRecurringFlowsToMonth(monthKey);
+    total.created+=result.created; total.skipped+=result.skipped;
+    if(result.created) markMonthChanged(monthKey,"补齐周期流水",[`新增 ${result.created} 条周期流水`]);
+  });
+  return total;
+}
+
 // ---------- 对账: 期末 = 期初 + 流水 + 价格更新, 找出不符合预期的变更 ----------
 function reconcile(mKey){
   const m=ledger.months[mKey];
@@ -175,6 +242,7 @@ function reconcile(mKey){
       case "sell": { const c=f.toAssetId; if(c)dVal[c]=(dVal[c]||0)+a;
                      const hold=f.fromAssetId; if(hold){ if(isFixed(hold)) dVal[hold]=(dVal[hold]||0)-h; else dQty[hold]=(dQty[hold]||0)-q; } break; }
       case "repay":{ const c=f.fromAssetId,l=f.toAssetId; if(c)dVal[c]=(dVal[c]||0)-a; if(l)dVal[l]=(dVal[l]||0)-a; break; }
+      case "valuation":{ const id=f.toAssetId; if(id) dVal[id]=(dVal[id]||0)+a; break; }
     }
   });
   const EPS=0.01, issues=[];
@@ -445,16 +513,16 @@ function buildFlowDraft(){
   }else rec.currency=(from.asset||to.asset)?.currency||"CNY";
   return {rec,newAsset};
 }
-function refreshFlowCostMetadata(month,rec){
+function refreshFlowCostMetadata(month,rec,monthKey=activeMonth){
   delete rec.costAddedCNY; delete rec.costReductionCNY; delete rec.realizedPnlCNY;
   if(rec.kind==="income"&&rec.nonCashIncome===true){
     const target=assetByFlow(month,rec,"to");
-    if(target&&target.cls!=="cash") rec.costAddedCNY=Math.abs(flowCNY(rec,activeMonth));
+    if(target&&target.cls!=="cash") rec.costAddedCNY=Math.abs(flowCNY(rec,monthKey));
   }else if(rec.kind==="buy"){
     const hold=assetByFlow(month,rec,"to");
     if(!hold) return;
-    if(hold.cls!=="stock"){ rec.costAddedCNY=flowCNY(rec,activeMonth); return; }
-    const position=Number(hold.qty||0), quantity=Number(rec.qty||0), trade=flowCNY(rec,activeMonth);
+    if(hold.cls!=="stock"){ rec.costAddedCNY=flowCNY(rec,monthKey); return; }
+    const position=Number(hold.qty||0), quantity=Number(rec.qty||0), trade=flowCNY(rec,monthKey);
     if(position>=0){ rec.costAddedCNY=trade; return; }
     const cover=Math.min(quantity,-position), opened=quantity-cover;
     const coverCost=trade*cover/quantity, reduction=Number(hold.costBasisCNY||0)*cover/(-position);
@@ -467,10 +535,10 @@ function refreshFlowCostMetadata(month,rec){
     if(hold.cls!=="stock"){
       const held=Math.abs(Number(hold.value||0)), sold=Math.abs(Number(rec.holdingAmount!=null?rec.holdingAmount:rec.amount||0));
       const reduction=Number(hold.costBasisCNY||0)*(held>0?Math.min(1,sold/held):0);
-      rec.costReductionCNY=reduction; rec.realizedPnlCNY=flowCNY(rec,activeMonth)-reduction;
+      rec.costReductionCNY=reduction; rec.realizedPnlCNY=flowCNY(rec,monthKey)-reduction;
       return;
     }
-    const position=Number(hold.qty||0), quantity=Number(rec.qty||0), trade=flowCNY(rec,activeMonth);
+    const position=Number(hold.qty||0), quantity=Number(rec.qty||0), trade=flowCNY(rec,monthKey);
     if(position<=0){ rec.costAddedCNY=trade; rec.realizedPnlCNY=0; return; }
     const closed=Math.min(quantity,position), opened=quantity-closed;
     const closedProceeds=trade*closed/quantity, reduction=Number(hold.costBasisCNY||0)*closed/position;
@@ -497,6 +565,95 @@ function removeUnreferencedOpenedAssets(month){
   const refs=new Set(month.flows.flatMap(flow=>[flow.fromAssetId,flow.toAssetId]).filter(Boolean));
   month.balance=month.balance.filter(row=>!row.openedThisMonth||refs.has(row.id));
 }
+
+// ---------- 周期流水规则 ----------
+function recurringRuleCurrency(rule){
+  const month=ledger.months[activeMonth];
+  const row=month?.balance.find(asset=>asset.id===(rule.fromAssetId||rule.toAssetId));
+  return row?.currency||"CNY";
+}
+function recurringAssetOptions(kind,side,selected){
+  const type=kind==="repay"&&side==="to"?"liability":"cash";
+  return assetOptions(type,selected);
+}
+function refreshRecurringSubcatList(){
+  const kind=$("rdKind").value, values=new Set();
+  (ledger.recurringFlows||[]).forEach(rule=>{ if(rule.kind===kind&&rule.subcat) values.add(rule.subcat); });
+  Object.values(ledger.months).forEach(month=>(month.flows||[]).forEach(flow=>{ if(flow.kind===kind&&flow.subcat) values.add(flow.subcat); }));
+  $("subcatList").innerHTML=[...values].map(value=>`<option value="${escapeAttr(value)}">`).join("");
+}
+function buildRecurringFields(rule){
+  const kind=$("rdKind").value;
+  const labels={income:["来源","收款账户"],expense:["付款账户","去向"],transfer:["转出账户","转入账户"],repay:["还款账户","负债账户"]}[kind];
+  $("rdFromLabel").textContent=labels[0]; $("rdToLabel").textContent=labels[1];
+  const from=kind==="income"?"":recurringAssetOptions(kind,"from",rule?.fromAssetId);
+  const to=kind==="expense"?"":recurringAssetOptions(kind,"to",rule?.toAssetId);
+  $("rd-from-wrap").innerHTML=from?`<select id="rdFrom">${from}</select>`:`<span class="mut">无</span>`;
+  $("rd-to-wrap").innerHTML=to?`<select id="rdTo">${to}</select>`:`<span class="mut">无</span>`;
+  $("rd-subcat").style.display=(kind==="income"||kind==="expense")?"":"none";
+  refreshRecurringSubcatList();
+}
+function openRecurringDialog(id){
+  const rule=id?(ledger.recurringFlows||[]).find(item=>item.id===id):null;
+  if(id&&!rule){ alert("周期流水不存在"); return; }
+  const draft=rule||{kind:"expense",day:1,amount:"",note:"",subcat:""};
+  $("recurringDlgTitle").textContent=rule?"编辑周期流水":"添加周期流水";
+  $("rdKind").value=draft.kind; $("rdDay").value=draft.day; $("rdAmount").value=draft.amount;
+  $("rdSubcat").value=draft.subcat||""; $("rdNote").value=draft.note||"";
+  $("recurringDialog").dataset.edit=rule?.id||"";
+  buildRecurringFields(draft);
+  $("recurringDialog").hidden=false;
+}
+function buildRecurringDraft(){
+  const kind=$("rdKind").value;
+  if(!RECURRING_FLOW_KINDS.has(kind)) throw new Error("请选择有效的周期流水类型");
+  const day=Math.trunc(Number($("rdDay").value));
+  if(!Number.isInteger(day)||day<1||day>31) throw new Error("每月日期必须在 1 到 31 之间");
+  const amount=parseArithmetic($("rdAmount").value,"金额");
+  if(!Number.isFinite(amount)||amount<=0) throw new Error("金额必须大于 0");
+  const fromId=$("rdFrom")?.value||"", toId=$("rdTo")?.value||"";
+  const from=fromId?assetById(fromId):null, to=toId?assetById(toId):null;
+  if((kind!=="income"&&!from)||(kind!=="expense"&&!to)) throw new Error("请选择有效账户");
+  if(kind==="transfer"&&fromId===toId) throw new Error("转出与转入账户不能相同");
+  if((kind==="transfer"||kind==="repay")&&from.currency!==to.currency) throw new Error("周期转账和还款暂不支持跨币种账户");
+  const rec={kind,day,amount,startMonth:activeMonth,note:textValue($("rdNote").value,240)};
+  if(fromId) rec.fromAssetId=fromId;
+  if(toId) rec.toAssetId=toId;
+  if(kind==="income"||kind==="expense") rec.subcat=textValue($("rdSubcat").value,80);
+  return rec;
+}
+function bindRecurringFlowManager(){
+  const add=$("btnAddRecurring"); if(add) add.addEventListener("click",()=>openRecurringDialog(null));
+  document.querySelectorAll("[data-redit]").forEach(button=>button.addEventListener("click",()=>openRecurringDialog(button.dataset.redit)));
+  document.querySelectorAll("[data-rdel]").forEach(button=>button.addEventListener("click",async()=>{
+    const rule=(ledger.recurringFlows||[]).find(item=>item.id===button.dataset.rdel);
+    if(!rule||!confirm(`删除周期流水规则「${recurringRuleLabel(rule)}」？已生成的历史流水不会删除。`)) return;
+    await transact("删除周期流水",()=>{ ledger.recurringFlows=ledger.recurringFlows.filter(item=>item.id!==rule.id); },{touch:false});
+  }));
+}
+$("rdKind").addEventListener("change",()=>buildRecurringFields(null));
+$("btnRecurringCancel").addEventListener("click",()=>{ $("recurringDialog").hidden=true; });
+$("btnRecurringOk").addEventListener("click",async()=>{
+  let draft;
+  try{ draft=buildRecurringDraft(); }catch(error){ alert(error.message); return; }
+  const editId=$("recurringDialog").dataset.edit;
+  const ok=await transact(`${editId?"修改":"添加"}周期流水`,()=>{
+    ledger.recurringFlows ||= [];
+    if(editId){
+      const index=ledger.recurringFlows.findIndex(rule=>rule.id===editId);
+      if(index<0) throw new Error("周期流水不存在");
+      draft.id=editId;
+      // 已生成的实际流水是历史记录；规则修改仅作用于之后新建的月份。
+      ledger.recurringFlows[index]=draft;
+    }else{
+      draft.id=uid("r"); ledger.recurringFlows.push(draft);
+      // 已经建立的后续月份也应立即获得规则对应的流水；recurringId 可防止重复生成。
+      applyRecurringFlowsFromMonth(activeMonth);
+    }
+  });
+  if(ok) $("recurringDialog").hidden=true;
+});
+
 $("btnFlowOk").addEventListener("click",async()=>{
   let draft;
   try{ draft=buildFlowDraft(); }catch(error){ alert(error.message); return; }
