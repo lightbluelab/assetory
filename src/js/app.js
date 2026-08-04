@@ -11,7 +11,7 @@ function showInstallGuide(){
 function initPWA(){
   if(isMobileDevice()&&!window.matchMedia("(display-mode: standalone)").matches) $("btnInstallApp").hidden=false;
   if(!window.isSecureContext||!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./service-worker.js?v=20260804-v27",{scope:"./"}).then(reg=>{
+  navigator.serviceWorker.register("./service-worker.js?v=20260804-v28",{scope:"./"}).then(reg=>{
     reg.addEventListener("updatefound",()=>{
       const worker=reg.installing;
       if(!worker) return;
@@ -87,11 +87,25 @@ $("btnCreateOk").addEventListener("click",async()=>{
 // ---------- 启动 ----------
 (async function boot(){
   initPWA();
-  loadGuide();
   renderAll();
-  const isWeb=/^https?:$/.test(location.protocol);
+  const launch=new URLSearchParams(location.search);
+  if(launch.get("demo")==="1"){
+    history.replaceState(null,"",location.pathname);
+    await loadDemoLedger();
+    return;
+  }
+  if(launch.get("action")==="create"){
+    history.replaceState(null,"",location.pathname);
+    openCreateDialog();
+    return;
+  }
+  if(launch.get("action")==="open"){
+    history.replaceState(null,"",location.pathname);
+    $("ledgerManagerDialog").hidden=false;
+    setStatus("请选择「打开 JSON」导入账本");
+    return;
+  }
   if(!HAS_FS){
-    if(isWeb && await loadDemoLedger()) return;
     setStatus("当前为导入模式：可打开 JSON 并下载备份；Chrome/Edge 的 HTTPS 页面支持自动写回本地文件");
     return;
   }
@@ -110,6 +124,5 @@ $("btnCreateOk").addEventListener("click",async()=>{
       }
     }
   }catch(e){ console.warn("恢复失败",e); }
-  if(!ledger && isWeb && !Object.keys(registry).length && await loadDemoLedger()) return;
   if(!ledger) setStatus("请「＋ 新建」或「打开文件…」开始");
 })();

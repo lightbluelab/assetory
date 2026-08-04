@@ -54,60 +54,6 @@ function escapeHTML(value){
   return String(value??"").replace(/[&<>'"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[ch]));
 }
 function escapeAttr(value){ return escapeHTML(value); }
-function renderReadmeInline(value){
-  let safe=escapeHTML(value);
-  safe=safe.replace(/`([^`]+)`/g,"<code>$1</code>");
-  safe=safe.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
-  return safe.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,(_,label,url)=>{
-    const href=/^(https?:\/\/|\.\/|\/)/.test(url)?url:"#";
-    const external=/^https?:\/\//.test(href);
-    return `<a href="${escapeAttr(href)}"${external?' target="_blank" rel="noopener"':""}>${label}</a>`;
-  });
-}
-function renderReadmeMarkdown(markdown){
-  const out=[]; let list="", paragraph=[]; let inCode=false, code=[];
-  const closeList=()=>{ if(list){ out.push(`</${list}>`); list=""; } };
-  const flushParagraph=()=>{ if(paragraph.length){ out.push(`<p>${renderReadmeInline(paragraph.join(" "))}</p>`); paragraph=[]; } };
-  const closeText=()=>{ flushParagraph(); closeList(); };
-  for(const rawLine of String(markdown||"").replace(/\r/g,"").split("\n")){
-    if(rawLine.trim().startsWith("```")){
-      if(inCode) out.push(`<pre><code>${escapeHTML(code.join("\n"))}</code></pre>`);
-      else closeText();
-      inCode=!inCode; code=[]; continue;
-    }
-    if(inCode){ code.push(rawLine); continue; }
-    const heading=rawLine.match(/^(#{1,3})\s+(.+)$/);
-    const ordered=rawLine.match(/^\d+\.\s+(.+)$/);
-    const unordered=rawLine.match(/^[-*]\s+(.+)$/);
-    if(heading){ closeText(); out.push(`<h3>${renderReadmeInline(heading[2])}</h3>`); }
-    else if(ordered||unordered){
-      flushParagraph(); const type=ordered?"ol":"ul";
-      if(list&&list!==type) closeList();
-      if(!list){ list=type; out.push(`<${type}>`); }
-      out.push(`<li>${renderReadmeInline((ordered||unordered)[1])}</li>`);
-    }else if(!rawLine.trim()) closeText();
-    else { closeList(); paragraph.push(rawLine.trim()); }
-  }
-  if(inCode) out.push(`<pre><code>${escapeHTML(code.join("\n"))}</code></pre>`);
-  else closeText();
-  return out.join("\n");
-}
-async function loadGuide(){
-  const target=$("guideContent");
-  if(!target) return;
-  const downloads=`<p><a href="./README.md?v=20260804-v27" download="README.md">下载 README</a>　<a href="./PROJECT_CONTEXT.md?v=20260804-v27" download="PROJECT_CONTEXT.md">下载 Project Context</a></p>`;
-  if(location.protocol==="file:"){
-    target.innerHTML=`<h3>使用说明</h3><p>本地文件模式下，浏览器禁止网页直接读取同目录 README。请通过下方链接打开或下载说明文件；在 HTTPS 网页或 PWA 中会自动显示 README 的最新内容。</p>${downloads}`;
-    return;
-  }
-  try{
-    const response=await fetch("./README.md?v=20260804-v27",{cache:"no-store"});
-    if(!response.ok) throw new Error(`HTTP ${response.status}`);
-    target.innerHTML=downloads+renderReadmeMarkdown(await response.text());
-  }catch(error){
-    target.innerHTML=`<h3>使用说明暂不可用</h3><p>无法读取 README。请检查部署目录中是否包含 README.md。</p>${downloads}`;
-  }
-}
 function textValue(value,max=160){ return String(value??"").replace(/[\u0000-\u001f\u007f]/g," ").trim().slice(0,max); }
 function isValidMonthKey(value){ return /^\d{4}-(0[1-9]|1[0-2])$/.test(String(value||"")); }
 function isValidDateKey(value,monthKey){

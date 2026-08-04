@@ -22,9 +22,12 @@ const replaceOnce = (source, token, value) => {
   return source.slice(0, first) + value + source.slice(first + token.length);
 };
 
-const [template, styles, ...modules] = await Promise.all([
+const [trackerTemplate, trackerStyles, demoLedger, landingTemplate, landingStyles, ...modules] = await Promise.all([
   read("src/index.template.html"),
   read("src/styles.css"),
+  read("demo-ledger.json"),
+  read("src/landing.template.html"),
+  read("src/landing.css"),
   ...moduleFiles.map(file => read(`src/js/${file}`)),
 ]);
 
@@ -36,20 +39,23 @@ const script = modules.map((source, index) => {
 // Parse the same concatenated script that will be shipped before touching index.html.
 new Function(script);
 
-let output = replaceOnce(template, "/*__INLINE_CSS__*/", styles.trim());
-output = replaceOnce(output, "/*__INLINE_JS__*/", script);
-output = output.replace(/\n*$/, "\n");
+let trackerOutput = replaceOnce(trackerTemplate, "/*__INLINE_CSS__*/", trackerStyles.trim());
+trackerOutput = replaceOnce(trackerOutput, "/*__INLINE_JS__*/", script);
+trackerOutput = replaceOnce(trackerOutput, "/*__INLINE_DEMO__*/", demoLedger.trim());
+trackerOutput = trackerOutput.replace(/\n*$/, "\n");
+let landingOutput = replaceOnce(landingTemplate, "/*__INLINE_LANDING_CSS__*/", landingStyles.trim());
+landingOutput = landingOutput.replace(/\n*$/, "\n");
 
-const outputPath = path.join(root, "index.html");
+const outputs = [
+  [path.join(root, "index.html"), landingOutput],
+  [path.join(root, "wealth-tracker.html"), trackerOutput],
+];
 if(process.argv.includes("--check")) {
-  const current = await read("index.html");
-  if(current !== output) {
-    console.error("index.html 不是最新构建产物，请运行 npm run build");
-    process.exitCode = 1;
-  } else {
-    console.log("index.html 已与模块源码同步");
-  }
+  const checks=await Promise.all(outputs.map(async([outputPath,output])=>({path:outputPath,current:await readFile(outputPath,"utf8")})));
+  const stale=checks.filter(({current},index)=>current!==outputs[index][1]);
+  if(stale.length){ console.error(`${stale.map(({path})=>path.split("/").at(-1)).join("、")} 不是最新构建产物，请运行 npm run build`); process.exitCode=1; }
+  else console.log("index.html 与 wealth-tracker.html 已与模块源码同步");
 } else {
-  await writeFile(outputPath, output);
-  console.log(`已生成 index.html（${Buffer.byteLength(output)} bytes）`);
+  await Promise.all(outputs.map(([path,output])=>writeFile(path,output)));
+  console.log(`已生成 index.html（${Buffer.byteLength(landingOutput)} bytes）与 wealth-tracker.html（${Buffer.byteLength(trackerOutput)} bytes）`);
 }

@@ -14,8 +14,9 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC","Microso
 .brand-icon{width:28px;height:28px;flex:none}
 .brand-kicker{font-family:-apple-system,sans-serif;font-size:9px;letter-spacing:2px;color:var(--muted);font-weight:600}
 .ledger-ctrl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.ledger-ctrl:has(.guide[open]){flex-basis:100%;justify-content:flex-end}
-.ledger-ctrl>button,.guide summary{min-height:38px;padding:8px 14px;font-size:14px;font-weight:600}
+.ledger-ctrl>button,.topbar-link{min-height:38px;padding:8px 14px;font-size:14px;font-weight:600}
+.topbar-link{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;color:var(--text);text-decoration:none;background:var(--panel2)}
+.topbar-link:hover{border-color:var(--accent);background:#ece5d5}
 .ledger-ctrl label{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:13px}
 select,input,button{background:var(--panel2);color:var(--text);border:1px solid var(--line);
   border-radius:8px;padding:6px 11px;font-size:13px;outline:none}
@@ -36,18 +37,6 @@ button.danger:hover{border-color:var(--red);color:var(--red);background:rgba(166
 .ledger-switch:hover{background:transparent;color:var(--accent)}
 .ledger-item .ledger-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ledger-item .ledger-state{font-size:11px;color:var(--muted);white-space:nowrap}
-.guide{font-size:13px}
-.guide summary{display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:var(--text);user-select:none;background:var(--panel2);border:1px solid var(--line);border-radius:8px;list-style:none}
-.guide summary::-webkit-details-marker{display:none}
-.guide summary:hover{border-color:var(--accent);background:#ece5d5}
-.guide[open]{display:flex;flex:0 0 100%;flex-direction:column;align-items:center;order:2}
-.guide[open] summary{align-self:flex-end;margin:4px 0 12px;color:var(--text)}
-.guide-content{width:min(920px,100%);margin:0 auto;padding:18px 22px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;line-height:1.7}
-.guide-content h3{margin:14px 0 5px;font-size:14px}
-.guide-content h3:first-child{margin-top:0}
-.guide-content p{margin:5px 0}
-.guide-content ol,.guide-content ul{margin:5px 0;padding-left:22px}
-.guide-content code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:rgba(255,255,255,.55);padding:1px 4px;border-radius:3px}
 .badge.price-status-btn{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;margin-left:3px;padding:0;border-radius:50%;background:transparent;font:inherit;line-height:1;vertical-align:middle}
 .badge.price-status-btn:hover{background:rgba(184,146,63,.12);filter:none}
 .badge.price-status-btn.warn:hover{border-color:var(--amber);color:var(--amber)}
@@ -274,12 +263,7 @@ tr.nettotal td{background:var(--panel2);font-weight:700;font-size:15px}
   .topbar{padding:12px 14px;gap:12px;align-items:flex-start}
   .brand{font-size:17px}
   .ledger-ctrl{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
-  .ledger-ctrl:has(.guide[open]){justify-content:initial}
-  .ledger-ctrl>button,.guide summary{width:100%;min-width:0;justify-content:center;padding:8px 7px}
-  .guide{min-width:0}
-  .guide[open]{grid-column:1/-1;align-items:stretch}
-  .guide[open] summary{align-self:stretch}
-  .guide-content{width:100%;margin:0;padding:14px;max-height:70vh;overflow:auto}
+  .ledger-ctrl>button,.topbar-link{width:100%;min-width:0;justify-content:center;padding:8px 7px}
   main{padding:12px;max-width:none}
   .trend-area,.month-panel{padding:14px;border-radius:10px}
   .trend-head{align-items:flex-start}
@@ -357,7 +341,7 @@ tr.nettotal td{background:var(--panel2);font-weight:700;font-size:15px}
   .trend-table .group-head{white-space:normal;line-height:1.2}
 }
 @media (max-width:380px){
-  .ledger-ctrl>button,.guide summary{font-size:13px}
+  .ledger-ctrl>button,.topbar-link{font-size:13px}
   .trend-summary .cards,.cards{gap:7px}
   .trend-summary .trend-card,.card{padding:10px}
   .trend-summary .change-value,.card .value{font-size:19px}

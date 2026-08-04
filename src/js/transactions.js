@@ -523,7 +523,6 @@ $("btnFlowOk").addEventListener("click",async()=>{
 
 function renderAll(){
   const hasLedger=Boolean(ledger);
-  $("guide").open = !hasLedger;
   document.querySelector(".trend-area").hidden = !hasLedger;
   $("monthTabs").hidden = !hasLedger;
   $("monthPanel").hidden = !hasLedger;

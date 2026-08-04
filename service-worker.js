@@ -1,15 +1,16 @@
-const CACHE_NAME = "wealth-tracker-pwa-v27";
+const CACHE_NAME = "wealth-tracker-pwa-v28";
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./wealth-tracker.html",
   "./demo-ledger.json",
-  "./README.md?v=20260804-v27",
-  "./PROJECT_CONTEXT.md?v=20260804-v27",
+  "./README.md?v=20260804-v28",
+  "./PROJECT_CONTEXT.md?v=20260804-v28",
   "./assets/images/wealth_tracker.svg",
-  "./assets/images/wealth_tracker-180.png?v=20260804-v27",
-  "./assets/images/wealth_tracker-192.png?v=20260804-v27",
-  "./assets/images/wealth_tracker-512.png?v=20260804-v27",
-  "./manifest.webmanifest?v=20260804-v27"
+  "./assets/images/wealth_tracker-180.png?v=20260804-v28",
+  "./assets/images/wealth_tracker-192.png?v=20260804-v28",
+  "./assets/images/wealth_tracker-512.png?v=20260804-v28",
+  "./manifest.webmanifest?v=20260804-v28"
 ];
 
 self.addEventListener("install", event => {
@@ -31,14 +32,15 @@ self.addEventListener("fetch", event => {
   if(url.origin !== self.location.origin) return;
 
   if(event.request.mode === "navigate") {
+    const pagePath = url.pathname.endsWith("wealth-tracker.html") ? "./wealth-tracker.html" : "./index.html";
     event.respondWith(
       fetch(event.request).then(response => {
         if(response.ok) {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put("./index.html", copy));
+          caches.open(CACHE_NAME).then(cache => cache.put(pagePath, copy));
         }
         return response;
-      }).catch(() => caches.match("./index.html"))
+      }).catch(() => caches.match(pagePath))
     );
     return;
   }

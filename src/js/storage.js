@@ -149,9 +149,18 @@ async function importFallbackFile(file){
 
 async function loadDemoLedger(){
   try{
-    const res=await fetch(new URL("./demo-ledger.json",location.href),{cache:"no-store"});
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    const obj=await res.json();
+    let obj;
+    const embedded=$("embeddedDemoData")?.textContent?.trim();
+    if(location.protocol==="file:"&&embedded){
+      obj=JSON.parse(embedded);
+    }else try{
+      const res=await fetch(new URL("./demo-ledger.json",location.href),{cache:"no-store"});
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      obj=await res.json();
+    }catch(fetchError){
+      if(!embedded) throw fetchError;
+      obj=JSON.parse(embedded);
+    }
     ledger=migrateLedger(obj); fileHandle=null; directoryHandle=null; encryptionKey=null; encryptionMeta=null;
     demoMode=true; activeMonth=Object.keys(obj.months).sort().at(-1)||null; balanceEditMode=false; flowEditMode=false;
     renderAll();
