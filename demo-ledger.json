@@ -2,9 +2,6 @@
   "schema": "family-ledger-v2",
   "name": "示例账本（6个月趋势演示）",
   "createdAt": "2026-01-01T00:00:00.000Z",
-  "recurringFlows": [
-    {"id":"rule-salary","kind":"income","day":10,"amount":32000,"startMonth":"2026-01","endMonth":"2026-06","toAssetId":"cash-cny","subcat":"工资","note":"周期工资"}
-  ],
   "months": {
     "2026-01": {
       "balance": [
@@ -17,7 +14,7 @@
         {"id":"mortgage","cls":"liability","group":"负债","name":"住房贷款","account":"招商银行","currency":"CNY","value":820000}
       ],
       "flows":[
-        {"id":"jan-income","recurringId":"rule-salary","kind":"income","date":"2026-01-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"周期工资"},
+        {"id":"jan-income","kind":"income","date":"2026-01-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"演示收入"},
         {"id":"jan-expense","kind":"expense","date":"2026-01-22","subcat":"日常","amount":9800,"currency":"CNY","fromAssetId":"cash-cny","note":"演示支出"},
         {"id":"jan-repay","kind":"repay","date":"2026-01-28","amount":4500,"currency":"CNY","fromAssetId":"cash-cny","toAssetId":"mortgage","note":"演示还款"}
       ],
@@ -34,7 +31,7 @@
         {"id":"mortgage","cls":"liability","group":"负债","name":"住房贷款","account":"招商银行","currency":"CNY","value":815500}
       ],
       "flows":[
-        {"id":"feb-income","recurringId":"rule-salary","kind":"income","date":"2026-02-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"周期工资"},
+        {"id":"feb-income","kind":"income","date":"2026-02-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"演示收入"},
         {"id":"feb-expense","kind":"expense","date":"2026-02-16","subcat":"旅行","amount":7600,"currency":"CNY","fromAssetId":"cash-cny","note":"演示支出"},
         {"id":"feb-transfer","kind":"transfer","date":"2026-02-20","amount":14000,"toAmount":1950,"currency":"CNY","toCurrency":"USD","fxRate":0.1393,"fromAssetId":"cash-cny","toAssetId":"cash-usd","note":"换汇至美元账户"}
       ],
@@ -52,7 +49,7 @@
         {"id":"mortgage","cls":"liability","group":"负债","name":"住房贷款","account":"招商银行","currency":"CNY","value":811000}
       ],
       "flows":[
-        {"id":"mar-income","recurringId":"rule-salary","kind":"income","date":"2026-03-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"周期工资"},
+        {"id":"mar-income","kind":"income","date":"2026-03-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"演示收入"},
         {"id":"mar-buy","kind":"buy","date":"2026-03-18","amount":10500,"holdingAmount":1460,"currency":"CNY","holdingCurrency":"USD","qty":2,"price":730,"fxRate":7.19,"fromAssetId":"cash-cny","toAssetId":"stock-voo","note":"买入美股 ETF"},
         {"id":"mar-expense","kind":"expense","date":"2026-03-25","subcat":"日常","amount":8800,"currency":"CNY","fromAssetId":"cash-cny","note":"演示支出"},
         {"id":"mar-home-valuation","kind":"valuation","date":"2026-03-31","amount":5000,"currency":"CNY","toAssetId":"home","note":"手工估值调整"}
@@ -71,7 +68,7 @@
         {"id":"mortgage","cls":"liability","group":"负债","name":"住房贷款","account":"招商银行","currency":"CNY","value":806500}
       ],
       "flows":[
-        {"id":"apr-income","recurringId":"rule-salary","kind":"income","date":"2026-04-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"周期工资"},
+        {"id":"apr-income","kind":"income","date":"2026-04-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"演示收入"},
         {"id":"apr-buy","kind":"buy","date":"2026-04-17","amount":3100,"currency":"CNY","qty":2,"price":1550,"fromAssetId":"cash-cny","toAssetId":"stock-moutai","note":"调仓买入 A 股"},
         {"id":"apr-repay","kind":"repay","date":"2026-04-28","amount":4500,"currency":"CNY","fromAssetId":"cash-cny","toAssetId":"mortgage","note":"演示还款"}
       ],
@@ -89,7 +86,7 @@
         {"id":"mortgage","cls":"liability","group":"负债","name":"住房贷款","account":"招商银行","currency":"CNY","value":802000}
       ],
       "flows":[
-        {"id":"may-income","recurringId":"rule-salary","kind":"income","date":"2026-05-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"周期工资"},
+        {"id":"may-income","kind":"income","date":"2026-05-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"演示收入"},
         {"id":"may-expense","kind":"expense","date":"2026-05-19","subcat":"购物","amount":12800,"currency":"CNY","fromAssetId":"cash-cny","note":"演示支出"},
         {"id":"may-sell","kind":"sell","date":"2026-05-26","amount":620,"holdingAmount":85,"currency":"CNY","holdingCurrency":"USD","qty":1,"price":85,"fxRate":7.29,"fromAssetId":"stock-voo","toAssetId":"cash-cny","note":"卖出部分美股 ETF"}
       ],
@@ -107,7 +104,7 @@
         {"id":"mortgage","cls":"liability","group":"负债","name":"住房贷款","account":"招商银行","currency":"CNY","value":797500}
       ],
       "flows":[
-        {"id":"jun-income","recurringId":"rule-salary","kind":"income","date":"2026-06-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"周期工资"},
+        {"id":"jun-income","kind":"income","date":"2026-06-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"演示收入"},
         {"id":"jun-dividend","kind":"dividend","date":"2026-06-13","holdingAmount":45,"holdingCurrency":"USD","amount":326.25,"currency":"CNY","fxRate":7.25,"fromAssetId":"stock-voo","toAssetId":"cash-cny","note":"VOO 季度分红"},
         {"id":"jun-buy","kind":"buy","date":"2026-06-16","amount":9300,"holdingAmount":1280,"currency":"CNY","holdingCurrency":"USD","qty":2,"price":640,"fxRate":7.27,"fromAssetId":"cash-cny","toAssetId":"stock-voo","note":"买入美股 ETF"},
         {"id":"jun-expense","kind":"expense","date":"2026-06-22","subcat":"保险","amount":6200,"currency":"CNY","fromAssetId":"cash-cny","note":"演示支出"},
