@@ -9,8 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <title id="pageTitle">WEALTH TRACKER</title>
 <link rel="icon" type="image/svg+xml" href="./assets/images/wealth_tracker.svg" />
-<link rel="apple-touch-icon" sizes="180x180" href="./assets/images/wealth_tracker-180.png?v=20260803-v26" />
-<link rel="manifest" href="./manifest.webmanifest?v=20260803-v26" />
+<link rel="apple-touch-icon" sizes="180x180" href="./assets/images/wealth_tracker-180.png?v=20260804-v27" />
+<link rel="manifest" href="./manifest.webmanifest?v=20260804-v27" />
 <style>
 :root{
   --bg:#efe9db; --panel:#faf7f0; --panel2:#f4efe3; --line:#e0d7c4;
@@ -715,13 +715,13 @@ function renderReadmeMarkdown(markdown){
 async function loadGuide(){
   const target=$("guideContent");
   if(!target) return;
-  const downloads=`<p><a href="./README.md?v=20260803-v26" download="README.md">下载 README</a>　<a href="./PROJECT_CONTEXT.md?v=20260803-v26" download="PROJECT_CONTEXT.md">下载 Project Context</a></p>`;
+  const downloads=`<p><a href="./README.md?v=20260804-v27" download="README.md">下载 README</a>　<a href="./PROJECT_CONTEXT.md?v=20260804-v27" download="PROJECT_CONTEXT.md">下载 Project Context</a></p>`;
   if(location.protocol==="file:"){
     target.innerHTML=`<h3>使用说明</h3><p>本地文件模式下，浏览器禁止网页直接读取同目录 README。请通过下方链接打开或下载说明文件；在 HTTPS 网页或 PWA 中会自动显示 README 的最新内容。</p>${downloads}`;
     return;
   }
   try{
-    const response=await fetch("./README.md?v=20260803-v26",{cache:"no-store"});
+    const response=await fetch("./README.md?v=20260804-v27",{cache:"no-store"});
     if(!response.ok) throw new Error(`HTTP ${response.status}`);
     target.innerHTML=downloads+renderReadmeMarkdown(await response.text());
   }catch(error){
@@ -3159,7 +3159,7 @@ function showInstallGuide(){
 function initPWA(){
   if(isMobileDevice()&&!window.matchMedia("(display-mode: standalone)").matches) $("btnInstallApp").hidden=false;
   if(!window.isSecureContext||!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./service-worker.js?v=20260803-v26",{scope:"./"}).then(reg=>{
+  navigator.serviceWorker.register("./service-worker.js?v=20260804-v27",{scope:"./"}).then(reg=>{
     reg.addEventListener("updatefound",()=>{
       const worker=reg.installing;
       if(!worker) return;
