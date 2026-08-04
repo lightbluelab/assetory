@@ -3209,36 +3209,46 @@ $("btnCreateOk").addEventListener("click",async()=>{
     await loadDemoLedger();
     return;
   }
-  if(launch.get("action")==="create"){
-    history.replaceState(null,"",location.pathname);
-    openCreateDialog();
-    return;
-  }
-  if(launch.get("action")==="open"){
-    history.replaceState(null,"",location.pathname);
-    $("ledgerManagerDialog").hidden=false;
-    setStatus("请选择「打开 JSON」导入账本");
-    return;
-  }
   if(!HAS_FS){
     setStatus("当前为导入模式：可打开 JSON 并下载备份；Chrome/Edge 的 HTTPS 页面支持自动写回本地文件");
     return;
   }
+  let saved={};
   try{
-    const saved = await idbGetAll();       // 恢复已知账本句柄
+    saved = await idbGetAll();       // 恢复已知账本句柄
     Object.entries(saved).forEach(([name,h])=>{ if(!name.startsWith("dir:")) registry[name]=h; });
     renderLedgerManager();
-    const last = localStorage.getItem(LS_ACTIVE);
-    if(last && registry[last]){
-      const h=registry[last];
-      // 刷新后需用户再次授权(浏览器安全策略); 授权成功则自动载入
-      if((await h.queryPermission({mode:"readwrite"}))==="granted"){
-        await useHandle(h,{isNew:false,directory:saved[`dir:${last}`]});
-        setStatus("已恢复账本: "+last);
-        return;
-      }
-    }
   }catch(e){ console.warn("恢复失败",e); }
+  const action=launch.get("action"), last=localStorage.getItem(LS_ACTIVE);
+  if(action) history.replaceState(null,"",location.pathname);
+  if(action==="create"){
+    openCreateDialog();
+    return;
+  }
+  if(action==="open"){
+    $("ledgerManagerDialog").hidden=false;
+    setStatus(Object.keys(registry).length?"请选择已有账本，或点击「打开 JSON」导入其他账本":"请选择「打开 JSON」导入账本");
+    return;
+  }
+  if(last && registry[last]){
+    const h=registry[last];
+    // 刷新或从介绍页返回时，授权仍有效则直接恢复；否则保留已知记录供用户点击授权。
+    if((await h.queryPermission({mode:"readwrite"}))==="granted"){
+      await useHandle(h,{isNew:false,directory:saved[`dir:${last}`]});
+      setStatus("已恢复账本: "+last);
+      return;
+    }
+    if(action==="resume"){
+      $("ledgerManagerDialog").hidden=false;
+      setStatus("请选择上次账本以重新授权打开");
+      return;
+    }
+  }
+  if(action==="resume"){
+    $("ledgerManagerDialog").hidden=false;
+    setStatus("未找到上次账本，请点击「打开 JSON」选择文件");
+    return;
+  }
   if(!ledger) setStatus("请「＋ 新建」或「打开文件…」开始");
 })();
 </script>
