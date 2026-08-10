@@ -1,7 +1,7 @@
 // ---------- IndexedDB: 持久化文件句柄 ----------
-function idbOpen(){
+function idbOpen(dbName=IDB_DB){
   return new Promise((res,rej)=>{
-    const req=indexedDB.open(IDB_DB,1);
+    const req=indexedDB.open(dbName,1);
     req.onupgradeneeded=()=>req.result.createObjectStore(IDB_STORE);
     req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error);
   });
@@ -9,14 +9,29 @@ function idbOpen(){
 async function idbSet(key,val){ const db=await idbOpen(); return new Promise((res,rej)=>{
   const tx=db.transaction(IDB_STORE,"readwrite"); tx.objectStore(IDB_STORE).put(val,key);
   tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
-async function idbGetAll(){ const db=await idbOpen(); return new Promise((res,rej)=>{
+async function idbGetAll(dbName=IDB_DB){ const db=await idbOpen(dbName); return new Promise((res,rej)=>{
   const tx=db.transaction(IDB_STORE,"readonly"); const st=tx.objectStore(IDB_STORE);
   const keys=st.getAllKeys(), vals=st.getAll(); const out={};
   tx.oncomplete=()=>{ keys.result.forEach((k,i)=>out[k]=vals.result[i]); res(out); }; tx.onerror=()=>rej(tx.error); }); }
 async function idbDel(key){ const db=await idbOpen(); return new Promise((res,rej)=>{
   const tx=db.transaction(IDB_STORE,"readwrite"); tx.objectStore(IDB_STORE).delete(key);
   tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
-const LS_ACTIVE = "familyLedger.active";  // 记住上次打开的账本名
+const LS_ACTIVE = "assetory.active";
+const LEGACY_LS_ACTIVE = "familyLedger.active";
+function activeLedgerName(){
+  const active=localStorage.getItem(LS_ACTIVE);
+  if(active) return active;
+  const legacy=localStorage.getItem(LEGACY_LS_ACTIVE);
+  if(legacy) localStorage.setItem(LS_ACTIVE,legacy);
+  return legacy;
+}
+async function restoreStoredHandles(){
+  const current=await idbGetAll();
+  const legacy=await idbGetAll(LEGACY_IDB_DB);
+  const missing=Object.entries(legacy).filter(([key])=>!Object.hasOwn(current,key));
+  await Promise.all(missing.map(([key,value])=>idbSet(key,value)));
+  return {...legacy,...current};
+}
 
 
 function b64(bytes){
@@ -117,7 +132,7 @@ async function openFromFile(){
   if(!HAS_FS){ $("fallbackJsonInput").click(); return; }
   try{
     const opts={
-      id:"family-ledger-open",
+      id:"assetory-open",
       types:[{description:"账本 JSON",accept:{"application/json":[".json"]}}]
     };
     // 有当前账本时从其所在目录开始；否则由浏览器恢复上次导入目录。
@@ -155,7 +170,7 @@ async function loadDemoLedger(){
     if(embedded){
       obj=JSON.parse(embedded);
     }else {
-      const res=await fetch(new URL("./demo-ledger.json",location.href),{cache:"no-store"});
+      const res=await fetch(new URL("./assetory-demo-ledger.json",location.href),{cache:"no-store"});
       if(!res.ok) throw new Error(`HTTP ${res.status}`);
       obj=await res.json();
     }

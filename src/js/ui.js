@@ -1,7 +1,7 @@
 // ---------- 渲染: 顶部 ----------
 function applyLedgerIdentity(){
   $("pageTitle").textContent = ledger ? `${APP_NAME} - ${ledger.name}` : APP_NAME;
-  $("brandName").textContent = ledger ? ledger.name : "资产价值追踪";
+  $("brandName").textContent = ledger ? ledger.name : "资产、负债与净值";
 }
 function renderLedgerManager(){
   const names=Object.keys(registry).sort();

@@ -7,21 +7,21 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-<title id="pageTitle">WEALTH TRACKER</title>
-<link rel="icon" type="image/svg+xml" href="./assets/images/wealth_tracker.svg" />
-<link rel="apple-touch-icon" sizes="180x180" href="./assets/images/wealth_tracker-180.png?v=20260804-v33" />
-<link rel="manifest" href="./manifest.webmanifest?v=20260804-v33" />
+<title id="pageTitle">ASSETORY</title>
+<link rel="icon" type="image/svg+xml" href="./assets/images/assetory.svg" />
+<link rel="apple-touch-icon" sizes="180x180" href="./assets/images/assetory-180.png?v=20260810-v35" />
+<link rel="manifest" href="./manifest.webmanifest?v=20260810-v35" />
 <style>
 /*__INLINE_CSS__*/
 </style>
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><img class="brand-icon" src="./assets/images/wealth_tracker.svg" alt="" /><div class="brand-copy"><span class="brand-kicker">WEALTH TRACKER</span><span id="brandName">资产价值追踪</span></div></div>
+  <div class="brand"><img class="brand-icon" src="./assets/images/assetory.svg" alt="" /><div class="brand-copy"><span class="brand-kicker">ASSETORY</span><span id="brandName">资产、负债与净值</span></div></div>
   <div class="ledger-ctrl">
     <button id="btnLedgerManager">账本管理</button>
     <button id="btnBackup" title="下载当前账本的 JSON 备份">备份</button>
-    <button id="btnInstallApp" hidden title="将 Wealth Tracker 添加到设备桌面">添加到桌面</button>
+    <button id="btnInstallApp" hidden title="将 Assetory 添加到设备桌面">添加到桌面</button>
     <a class="topbar-link" href="./index.html">产品介绍</a>
   </div>
 </header>
@@ -78,7 +78,7 @@
 
 <div id="createDialog" class="modal" hidden>
   <div class="modal-box">
-    <p class="launch-kicker">WEALTH TRACKER</p>
+    <p class="launch-kicker">ASSETORY</p>
     <h3>新建账本</h3>
     <label class="fld">账本名称 <span class="mut">(用作文件名与网页标题)</span>
       <input id="newName" type="text" placeholder="例如：我家账本" />
@@ -102,7 +102,7 @@
 
 <div id="openDialog" class="modal" hidden>
   <div class="modal-box">
-    <p class="launch-kicker">WEALTH TRACKER</p>
+    <p class="launch-kicker">ASSETORY</p>
     <h3>打开账本</h3>
     <p id="openDialogHint" class="mut">选择之前保存的账本 JSON 文件，继续查看或编辑。</p>
     <div class="modal-actions"><a class="launch-back" href="./index.html">返回产品介绍</a><button id="btnOpenDirect" class="primary">选择 JSON 文件…</button></div>

@@ -1,8 +1,8 @@
-# Wealth Tracker 项目上下文
+# Assetory 项目上下文
 
 ## 当前目标
 
-Wealth Tracker 是本地优先的月度资产价值追踪工具。它以单个 JSON 账本保存月末资产、流水、汇率、价格与趋势分析；网页只计算和展示，不保存用户账本到服务器。
+Assetory 是本地优先的月度资产价值追踪工具。它以单个 JSON 账本保存月末资产、流水、汇率、价格与趋势分析；网页只计算和展示，不保存用户账本到服务器。
 
 ## 文件与发布
 
@@ -16,8 +16,8 @@ Wealth Tracker 是本地优先的月度资产价值追踪工具。它以单个 J
 - `src/js/app.js`：全局事件、PWA 和启动流程。
 - `scripts/build.mjs`：将模板、CSS 和上述模块合并为单文件 `index.html`；无第三方依赖。
 - `assets/images/`：页面、浏览器 Tab 与 PWA 图标。
-- `index.html`：生成后的本地版和服务器静态入口，不应直接编辑。单独下载后可按需要重命名为 `wealth_tracker.html`。
-- `demo-ledger.json`：公开演示账本，六个月数据，可用于基础回归。
+- `index.html`：生成后的本地版和服务器静态入口，不应直接编辑。单独下载后可按需要重命名为 `assetory.html`。
+- `assetory-demo-ledger.json`：公开演示账本，六个月数据，可用于基础回归。
 - `manifest.webmanifest` / `service-worker.js`：PWA 安装与离线程序缓存。
 - `README.md`：给普通用户与 AI Agent 的使用说明。
 
@@ -82,4 +82,4 @@ npm run build
 npm run check
 ```
 
-还应检查 `demo-ledger.json` 能被解析，且每条 `fromAssetId` / `toAssetId` 都存在于该月 `balance`。数据计算或同步逻辑改动时，优先用演示账本手工验证买入、卖出、资产收益、删除资产与跨月同步。
+还应检查 `assetory-demo-ledger.json` 能被解析，且每条 `fromAssetId` / `toAssetId` 都存在于该月 `balance`。数据计算或同步逻辑改动时，优先用演示账本手工验证买入、卖出、资产收益、删除资产与跨月同步。

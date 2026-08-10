@@ -25,6 +25,7 @@ const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({"&"
 const inlineMarkdown = value => escapeHtml(value)
   .replace(/`([^`]+)`/g,"<code>$1</code>")
   .replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>")
+  .replace(/\*([^*]+)\*/g,"<em>$1</em>")
   .replace(/\[([^\]]+)\]\(([^\s)]+)\)/g,'<a href="$2">$1</a>');
 const renderGuide = markdown => {
   const output=[], paragraph=[], list=[];
@@ -52,7 +53,7 @@ const renderGuide = markdown => {
 const [trackerTemplate, trackerStyles, demoLedger, landingTemplate, landingStyles, guideTemplate, readme, ...modules] = await Promise.all([
   read("src/index.template.html"),
   read("src/styles.css"),
-  read("demo-ledger.json"),
+  read("assetory-demo-ledger.json"),
   read("src/landing.template.html"),
   read("src/landing.css"),
   read("src/guide.template.html"),
@@ -79,15 +80,15 @@ guideOutput = guideOutput.replace(/\n*$/, "\n");
 
 const outputs = [
   [path.join(root, "index.html"), landingOutput],
-  [path.join(root, "wealth-tracker.html"), trackerOutput],
+  [path.join(root, "assetory.html"), trackerOutput],
   [path.join(root, "guide.html"), guideOutput],
 ];
 if(process.argv.includes("--check")) {
   const checks=await Promise.all(outputs.map(async([outputPath,output])=>({path:outputPath,current:await readFile(outputPath,"utf8")})));
   const stale=checks.filter(({current},index)=>current!==outputs[index][1]);
   if(stale.length){ console.error(`${stale.map(({path})=>path.split("/").at(-1)).join("、")} 不是最新构建产物，请运行 npm run build`); process.exitCode=1; }
-  else console.log("index.html、wealth-tracker.html 与 guide.html 已与模块源码同步");
+  else console.log("index.html、assetory.html 与 guide.html 已与模块源码同步");
 } else {
   await Promise.all(outputs.map(([path,output])=>writeFile(path,output)));
-  console.log(`已生成 index.html（${Buffer.byteLength(landingOutput)} bytes）、wealth-tracker.html（${Buffer.byteLength(trackerOutput)} bytes）与 guide.html（${Buffer.byteLength(guideOutput)} bytes）`);
+  console.log(`已生成 index.html（${Buffer.byteLength(landingOutput)} bytes）、assetory.html（${Buffer.byteLength(trackerOutput)} bytes）与 guide.html（${Buffer.byteLength(guideOutput)} bytes）`);
 }

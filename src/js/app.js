@@ -4,14 +4,14 @@ function isMobileDevice(){ return /Android|iPhone|iPad|iPod/i.test(navigator.use
 function showInstallGuide(){
   const isiOS=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
   $("installGuideContent").innerHTML=isiOS
-    ? `<p>请点击浏览器底部或顶部的“分享”按钮，然后选择“添加到主屏幕”。</p><p>添加后可从桌面以独立应用方式打开 Wealth Tracker。</p>`
-    : `<p>请在浏览器菜单中选择“安装应用”或“添加到主屏幕”。</p><p>添加后可从桌面以独立应用方式打开 Wealth Tracker。</p>`;
+    ? `<p>请点击浏览器底部或顶部的“分享”按钮，然后选择“添加到主屏幕”。</p><p>添加后可从桌面以独立应用方式打开 Assetory。</p>`
+    : `<p>请在浏览器菜单中选择“安装应用”或“添加到主屏幕”。</p><p>添加后可从桌面以独立应用方式打开 Assetory。</p>`;
   $("installGuideDialog").hidden=false;
 }
 function initPWA(){
   if(isMobileDevice()&&!window.matchMedia("(display-mode: standalone)").matches) $("btnInstallApp").hidden=false;
   if(!window.isSecureContext||!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./service-worker.js?v=20260804-v33",{scope:"./"}).then(reg=>{
+  navigator.serviceWorker.register("./service-worker.js?v=20260810-v35",{scope:"./"}).then(reg=>{
     reg.addEventListener("updatefound",()=>{
       const worker=reg.installing;
       if(!worker) return;
@@ -30,7 +30,7 @@ window.addEventListener("beforeinstallprompt",event=>{
 window.addEventListener("appinstalled",()=>{
   deferredInstallPrompt=null;
   $("btnInstallApp").hidden=true;
-  setStatus("Wealth Tracker 已安装为本机应用");
+  setStatus("Assetory 已安装为本机应用");
 });
 $("btnInstallApp").addEventListener("click",async()=>{
   if(!deferredInstallPrompt){ showInstallGuide(); return; }
@@ -70,7 +70,7 @@ $("btnCreateOk").addEventListener("click",async()=>{
   const safeName=name.replaceAll("/","_").replaceAll("\\","_").replace(/[<>:"|?*\u0000-\u001F]/g,"_").trim()||"ledger";
   const filename=safeName+"_ledger_data.json";
   try{
-    directory = await window.showDirectoryPicker({id:"wealth-tracker-directory",mode:"readwrite"});
+    directory = await window.showDirectoryPicker({id:"assetory-directory",mode:"readwrite"});
     try{
       await directory.getFileHandle(filename);
       alert(`所选目录中已存在 ${filename}。为避免覆盖账本，请修改名称或选择其他目录。`);
@@ -121,11 +121,11 @@ $("btnCreateOk").addEventListener("click",async()=>{
   }
   let saved={};
   try{
-    saved = await idbGetAll();       // 恢复已知账本句柄
+    saved = await restoreStoredHandles();       // 迁移并恢复已知账本句柄
     Object.entries(saved).forEach(([name,h])=>{ if(!name.startsWith("dir:")) registry[name]=h; });
     renderLedgerManager();
   }catch(e){ console.warn("恢复失败",e); }
-  const last=localStorage.getItem(LS_ACTIVE);
+  const last=activeLedgerName();
   if(action) history.replaceState(null,"",location.pathname);
   if(last && registry[last]){
     const h=registry[last];

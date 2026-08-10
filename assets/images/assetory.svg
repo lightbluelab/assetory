@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
-  <title id="title">Asseta Apple Glass</title>
-  <desc id="desc">Three translucent asset layers connected by a flowing glass ribbon.</desc>
+  <title id="title">Assetory</title>
+  <desc id="desc">Three translucent asset layers connected by a flowing ribbon.</desc>
   <defs>
     <radialGradient id="bg" cx="50%" cy="44%" r="76%">
       <stop offset="0" stop-color="#172849"/>

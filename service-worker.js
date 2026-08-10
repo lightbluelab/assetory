@@ -1,18 +1,18 @@
-const CACHE_NAME = "wealth-tracker-pwa-v33";
+const CACHE_NAME = "assetory-pwa-v35";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./wealth-tracker.html",
+  "./assetory.html",
   "./guide.html",
-  "./demo-ledger.json",
-  "./README.md?v=20260804-v33",
-  "./PROJECT_CONTEXT.md?v=20260804-v33",
-  "./assets/images/wealth_tracker.svg",
+  "./assetory-demo-ledger.json",
+  "./README.md?v=20260810-v35",
+  "./PROJECT_CONTEXT.md?v=20260810-v35",
+  "./assets/images/assetory.svg",
   "./assets/images/hero-asset-journal.svg",
-  "./assets/images/wealth_tracker-180.png?v=20260804-v33",
-  "./assets/images/wealth_tracker-192.png?v=20260804-v33",
-  "./assets/images/wealth_tracker-512.png?v=20260804-v33",
-  "./manifest.webmanifest?v=20260804-v33"
+  "./assets/images/assetory-180.png?v=20260810-v35",
+  "./assets/images/assetory-192.png?v=20260810-v35",
+  "./assets/images/assetory-512.png?v=20260810-v35",
+  "./manifest.webmanifest?v=20260810-v35"
 ];
 
 self.addEventListener("install", event => {
@@ -22,7 +22,7 @@ self.addEventListener("install", event => {
 self.addEventListener("activate", event => {
   event.waitUntil(
     caches.keys().then(keys => Promise.all(
-      keys.filter(key => key.startsWith("wealth-tracker-pwa-") && key !== CACHE_NAME)
+      keys.filter(key => (key.startsWith("assetory-pwa-") || key.startsWith("wealth-tracker-pwa-")) && key !== CACHE_NAME)
         .map(key => caches.delete(key))
     )).then(()=>self.clients.claim())
   );
@@ -34,7 +34,7 @@ self.addEventListener("fetch", event => {
   if(url.origin !== self.location.origin) return;
 
   if(event.request.mode === "navigate") {
-    const pagePath = url.pathname.endsWith("wealth-tracker.html") ? "./wealth-tracker.html" : "./index.html";
+    const pagePath = url.pathname.endsWith("assetory.html") ? "./assetory.html" : "./index.html";
     event.respondWith(
       fetch(event.request).then(response => {
         if(response.ok) {

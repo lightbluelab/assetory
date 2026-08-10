@@ -1,6 +1,6 @@
 "use strict";
 /* =========================================================
-   Wealth Tracker —— 单 JSON、本地优先的资产价值追踪工具
+   Assetory —— 单 JSON、本地优先的资产价值追踪工具
    -----------------------------------------------------------------
    一个账本 = 一个 JSON 文件。每月保存期末资产、流水、汇率、期初快照、
    同步版本与变更日志；流水通过稳定资产 ID 关联账户和持仓。
@@ -8,7 +8,7 @@
    在内存中编辑后下载备份。localStorage 只记住最近账本名称，不保存账本数据。
    ========================================================= */
 
-const APP_NAME = "WEALTH TRACKER";
+const APP_NAME = "Assetory";
 // 资产大类定义: 决定录入时填哪些字段
 const ASSET_CLASSES = {
   stock:     { name:"股票",     hasQty:true,  hasAccount:true,  hasAuto:true,  sign:1  },
@@ -32,7 +32,8 @@ const FLOW_TYPES = {
   valuation:{ name:"手工估值调整", from:"free", to:"asset", needQtyPrice:false, internal:true },
 };
 const HAS_FS = ("showOpenFilePicker" in window && "showDirectoryPicker" in window);
-const IDB_DB = "familyLedgerDB", IDB_STORE = "handles";
+const IDB_DB = "assetoryDB", IDB_STORE = "handles";
+const LEGACY_IDB_DB = "familyLedgerDB";
 
 // ---------- 运行时状态 ----------
 let ledger = null;          // 当前账本对象

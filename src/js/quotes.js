@@ -123,7 +123,7 @@ function sinaUsKline(symbol,monthKey){
 }
 function loadSinaUsKline(symbol,monthKey){
   return new Promise((resolve,reject)=>{
-    const callback="__wealthTrackerSinaData";
+    const callback="__assetorySinaData";
     const script=document.createElement("script");
     let settled=false;
     // 新浪脚本通过全局 var 写入数据，该属性在严格模式下不可 delete，只能安全置空。
