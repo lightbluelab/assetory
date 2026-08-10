@@ -9,8 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <title id="pageTitle">WEALTH TRACKER</title>
 <link rel="icon" type="image/svg+xml" href="./assets/images/wealth_tracker.svg" />
-<link rel="apple-touch-icon" sizes="180x180" href="./assets/images/wealth_tracker-180.png?v=20260804-v30" />
-<link rel="manifest" href="./manifest.webmanifest?v=20260804-v30" />
+<link rel="apple-touch-icon" sizes="180x180" href="./assets/images/wealth_tracker-180.png?v=20260804-v33" />
+<link rel="manifest" href="./manifest.webmanifest?v=20260804-v33" />
 <style>
 /*__INLINE_CSS__*/
 </style>
@@ -78,6 +78,7 @@
 
 <div id="createDialog" class="modal" hidden>
   <div class="modal-box">
+    <p class="launch-kicker">WEALTH TRACKER</p>
     <h3>新建账本</h3>
     <label class="fld">账本名称 <span class="mut">(用作文件名与网页标题)</span>
       <input id="newName" type="text" placeholder="例如：我家账本" />
@@ -96,6 +97,15 @@
       <button id="btnCreateCancel">取消</button>
       <button id="btnCreateOk" class="primary">创建并选择本地目录…</button>
     </div>
+  </div>
+</div>
+
+<div id="openDialog" class="modal" hidden>
+  <div class="modal-box">
+    <p class="launch-kicker">WEALTH TRACKER</p>
+    <h3>打开账本</h3>
+    <p id="openDialogHint" class="mut">选择之前保存的账本 JSON 文件，继续查看或编辑。</p>
+    <div class="modal-actions"><a class="launch-back" href="./index.html">返回产品介绍</a><button id="btnOpenDirect" class="primary">选择 JSON 文件…</button></div>
   </div>
 </div>
 
@@ -250,10 +260,10 @@
   </div>
 </div>
 
+<script id="embeddedDemoData" type="application/json">/*__INLINE_DEMO__*/</script>
 <script>
 /*__INLINE_JS__*/
 </script>
-<script id="embeddedDemoData" type="application/json">/*__INLINE_DEMO__*/</script>
 
 
 </body>

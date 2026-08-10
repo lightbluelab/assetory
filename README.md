@@ -78,6 +78,7 @@ Wealth Tracker 是用于持续追踪个人或家庭资产价值的小工具。�
 
 - [打开产品介绍页](./index.html)
 - [下载独立账本页](./wealth-tracker.html)
+- [阅读排版版使用说明](./guide.html)
 - [下载 README](./README.md)
 - [下载演示账本](./demo-ledger.json)
 - [下载 Project Context](./PROJECT_CONTEXT.md)
@@ -108,11 +109,11 @@ npm run build
 npm run check
 ```
 
-`npm run build` 不需要安装第三方依赖，会分别生成根目录的 `index.html`（介绍页）和 `wealth-tracker.html`（独立账本工作台）。`npm run check` 用于确认两个生成文件都与源码完全一致。开发时不要直接修改生成后的 HTML。
+`npm run build` 不需要安装第三方依赖，会分别生成根目录的 `index.html`（介绍页）、`wealth-tracker.html`（独立账本工作台）和 `guide.html`（排版版使用说明）。`npm run check` 用于确认三个生成文件都与源码完全一致。开发时不要直接修改生成后的 HTML。
 
 ### Git 提交范围
 
-应提交：`assets/`、`src/`、`scripts/`、`index.html`、`wealth-tracker.html`、`package.json`、`manifest.webmanifest`、`service-worker.js`、`README.md`、`PROJECT_CONTEXT.md`、`demo-ledger.json`。
+应提交：`assets/`、`src/`、`scripts/`、`index.html`、`wealth-tracker.html`、`guide.html`、`package.json`、`manifest.webmanifest`、`service-worker.js`、`README.md`、`PROJECT_CONTEXT.md`、`demo-ledger.json`。
 
 不要提交：个人账本（`*_ledger_data.json`）、下载的备份（`*_backup_*.json`）、`.DS_Store`、`node_modules/`、`.env` 或任何密码、令牌和私钥。项目已通过 `.gitignore` 忽略常见本地文件；提交前仍应检查 `git status`。
 

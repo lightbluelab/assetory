@@ -143,6 +143,7 @@ async function importFallbackFile(file){
     ledger=nextLedger; encryptionKey=nextEncryptionKey; encryptionMeta=nextEncryptionMeta;
     fileHandle=null; directoryHandle=null; demoMode=false; activeMonth=null; balanceEditMode=false; flowEditMode=false;
     renderAll();
+    $("openDialog").hidden=true;
     setStatus(`已导入 ${file.name}；请使用「备份」下载编辑后的 JSON`);
   }catch(e){ alert("导入失败: "+e.message); }
 }
@@ -151,15 +152,12 @@ async function loadDemoLedger(){
   try{
     let obj;
     const embedded=$("embeddedDemoData")?.textContent?.trim();
-    if(location.protocol==="file:"&&embedded){
+    if(embedded){
       obj=JSON.parse(embedded);
-    }else try{
+    }else {
       const res=await fetch(new URL("./demo-ledger.json",location.href),{cache:"no-store"});
       if(!res.ok) throw new Error(`HTTP ${res.status}`);
       obj=await res.json();
-    }catch(fetchError){
-      if(!embedded) throw fetchError;
-      obj=JSON.parse(embedded);
     }
     ledger=migrateLedger(obj); fileHandle=null; directoryHandle=null; encryptionKey=null; encryptionMeta=null;
     demoMode=true; activeMonth=Object.keys(obj.months).sort().at(-1)||null; balanceEditMode=false; flowEditMode=false;

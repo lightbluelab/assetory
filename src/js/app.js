@@ -11,7 +11,7 @@ function showInstallGuide(){
 function initPWA(){
   if(isMobileDevice()&&!window.matchMedia("(display-mode: standalone)").matches) $("btnInstallApp").hidden=false;
   if(!window.isSecureContext||!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./service-worker.js?v=20260804-v30",{scope:"./"}).then(reg=>{
+  navigator.serviceWorker.register("./service-worker.js?v=20260804-v33",{scope:"./"}).then(reg=>{
     reg.addEventListener("updatefound",()=>{
       const worker=reg.installing;
       if(!worker) return;
@@ -42,7 +42,14 @@ $("btnInstallApp").addEventListener("click",async()=>{
 $("btnInstallGuideDone").addEventListener("click",()=>{ $("installGuideDialog").hidden=true; });
 
 // 新建账本对话框
-$("btnCreateCancel").addEventListener("click",()=>{ $("createDialog").hidden=true; });
+$("btnCreateCancel").addEventListener("click",()=>{
+  if(document.body.classList.contains("launch-mode")){ location.href="./index.html"; return; }
+  $("createDialog").hidden=true;
+});
+$("btnOpenDirect").addEventListener("click",async()=>{
+  await openFromFile();
+  if(ledger) $("openDialog").hidden=true;
+});
 $("btnCreateOk").addEventListener("click",async()=>{
   const name=($("newName").value||"").trim();
   const password=$("newPassword").value, confirmPassword=$("newPasswordConfirm").value;
@@ -94,6 +101,20 @@ $("btnCreateOk").addEventListener("click",async()=>{
     await loadDemoLedger();
     return;
   }
+  const action=launch.get("action");
+  if(action==="create"||action==="open"){
+    history.replaceState(null,"",location.pathname);
+    document.body.classList.add("launch-mode");
+    if(action==="create"){
+      openCreateDialog();
+    }else{
+      $("openDialogHint").textContent=HAS_FS
+        ? "选择之前保存的账本 JSON 文件，继续查看或编辑。"
+        : "选择账本 JSON 文件后可在当前浏览器查看和编辑，并下载更新后的备份。";
+      $("openDialog").hidden=false;
+    }
+    return;
+  }
   if(!HAS_FS){
     setStatus("当前为导入模式：可打开 JSON 并下载备份；Chrome/Edge 的 HTTPS 页面支持自动写回本地文件");
     return;
@@ -104,17 +125,8 @@ $("btnCreateOk").addEventListener("click",async()=>{
     Object.entries(saved).forEach(([name,h])=>{ if(!name.startsWith("dir:")) registry[name]=h; });
     renderLedgerManager();
   }catch(e){ console.warn("恢复失败",e); }
-  const action=launch.get("action"), last=localStorage.getItem(LS_ACTIVE);
+  const last=localStorage.getItem(LS_ACTIVE);
   if(action) history.replaceState(null,"",location.pathname);
-  if(action==="create"){
-    openCreateDialog();
-    return;
-  }
-  if(action==="open"){
-    $("ledgerManagerDialog").hidden=false;
-    setStatus(Object.keys(registry).length?"请选择已有账本，或点击「打开 JSON」导入其他账本":"请选择「打开 JSON」导入账本");
-    return;
-  }
   if(last && registry[last]){
     const h=registry[last];
     // 刷新或从介绍页返回时，授权仍有效则直接恢复；否则保留已知记录供用户点击授权。

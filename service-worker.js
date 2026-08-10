@@ -1,17 +1,18 @@
-const CACHE_NAME = "wealth-tracker-pwa-v30";
+const CACHE_NAME = "wealth-tracker-pwa-v33";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./wealth-tracker.html",
+  "./guide.html",
   "./demo-ledger.json",
-  "./README.md?v=20260804-v30",
-  "./PROJECT_CONTEXT.md?v=20260804-v30",
+  "./README.md?v=20260804-v33",
+  "./PROJECT_CONTEXT.md?v=20260804-v33",
   "./assets/images/wealth_tracker.svg",
   "./assets/images/hero-asset-journal.svg",
-  "./assets/images/wealth_tracker-180.png?v=20260804-v30",
-  "./assets/images/wealth_tracker-192.png?v=20260804-v30",
-  "./assets/images/wealth_tracker-512.png?v=20260804-v30",
-  "./manifest.webmanifest?v=20260804-v30"
+  "./assets/images/wealth_tracker-180.png?v=20260804-v33",
+  "./assets/images/wealth_tracker-192.png?v=20260804-v33",
+  "./assets/images/wealth_tracker-512.png?v=20260804-v33",
+  "./manifest.webmanifest?v=20260804-v33"
 ];
 
 self.addEventListener("install", event => {
