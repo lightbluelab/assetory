@@ -175,23 +175,16 @@ async function fetchStockPrice(market, symbol, monthKey){
   if(!(out && out.price>0)) throw new Error("未获取到有效收盘价");
   return out;
 }
-async function fetchOpeningPriceBaseline(row,monthKey){
-  if(monthKey!==monthKeys()[0]||row.cls!=="stock"||!row.auto||!row.symbol) return null;
-  const {price,date,src}=await fetchStockPrice(row.market,row.symbol,previousMonthKey(monthKey));
-  return {price,date,src};
-}
 async function fetchStockUpdate(row,monthKey){
   const {price,date,src}=await fetchStockPrice(row.market,row.symbol,monthKey);
   if(!(price>0)) throw new Error("价格为0");
-  const baseline=await fetchOpeningPriceBaseline(row,monthKey).catch(()=>null);
-  return {price,date,priceAt:`${date}${src?"("+src+")":""}`,baseline};
+  return {price,date,priceAt:`${date}${src?"("+src+")":""}`};
 }
 function applyStockUpdate(month,row,result){
   row.price=result.price;
   row.priceStatus="ok";
   row.priceAt=result.priceAt;
   row.manualPriceAt=null;
-  if(result.baseline) month.openingPrices={...(month.openingPrices||{}),[row.id]:result.baseline};
 }
 async function updateOnePrice(idx){
   const m=ledger.months[activeMonth]; const r=m.balance[idx];
@@ -200,7 +193,7 @@ async function updateOnePrice(idx){
   try{
     const result=await fetchStockUpdate(r,activeMonth);
     const ok=await transact(`更新股价：${r.name}`,()=>applyStockUpdate(m,r,result));
-    if(ok) setStatus(`${r.name} 已更新: ${result.price} @ ${result.date}${result.baseline?"；已记录上月底价格基线":""}`);
+    if(ok) setStatus(`${r.name} 已更新: ${result.price} @ ${result.date}`);
   }catch(e){
     const recorded=await transact(`记录股价获取失败：${r.name}`,()=>{ r.priceStatus="warn"; });
     if(recorded) setStatus(`${r.name} 自动获取失败(${e.message})，请手动填写`);

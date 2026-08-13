@@ -1,117 +1,1315 @@
 {
-  "schema": "family-ledger-v2",
+  "schema": "assetory-ledger-v1",
   "name": "示例账本（6个月趋势演示）",
   "createdAt": "2026-01-01T00:00:00.000Z",
   "months": {
     "2026-01": {
+      "opening": [
+        {
+          "id": "cash-cny",
+          "cls": "cash",
+          "name": "招商银行·活期",
+          "value": 90300
+        },
+        {
+          "id": "cash-usd",
+          "cls": "cash",
+          "name": "盈透证券·美元余额",
+          "value": 2200
+        },
+        {
+          "id": "stock-voo",
+          "cls": "stock",
+          "name": "VOO",
+          "qty": 12,
+          "price": 545
+        },
+        {
+          "id": "stock-moutai",
+          "cls": "stock",
+          "name": "贵州茅台",
+          "qty": 30,
+          "price": 1500
+        },
+        {
+          "id": "fund-gold",
+          "cls": "fund",
+          "name": "黄金 ETF",
+          "value": 38000
+        },
+        {
+          "id": "home",
+          "cls": "fixed",
+          "name": "自住房",
+          "value": 1800000
+        },
+        {
+          "id": "mortgage",
+          "cls": "liability",
+          "name": "住房贷款",
+          "value": 824500
+        }
+      ],
       "balance": [
-        {"id":"cash-cny","cls":"cash","group":"现金","name":"招商银行·活期","account":"招商银行","currency":"CNY","value":108000},
-        {"id":"cash-usd","cls":"cash","group":"现金","name":"盈透证券·美元余额","account":"盈透证券","currency":"USD","value":2200},
-        {"id":"stock-voo","cls":"stock","group":"美股","name":"VOO","account":"盈透证券","currency":"USD","qty":12,"price":545,"auto":true,"market":"US","symbol":"VOO","priceStatus":"ok","priceAt":"2026-01-30(历史收盘)"},
-        {"id":"stock-moutai","cls":"stock","group":"A股","name":"贵州茅台","account":"招商证券","currency":"CNY","qty":30,"price":1500,"auto":true,"market":"CN","symbol":"600519","priceStatus":"ok","priceAt":"2026-01-30(历史收盘)"},
-        {"id":"fund-gold","cls":"fund","group":"基金","name":"黄金 ETF","account":"支付宝","currency":"CNY","value":38000,"manualPriceAt":"2026-01"},
-        {"id":"home","cls":"fixed","group":"固定资产","name":"自住房","currency":"CNY","value":1800000,"manualPriceAt":"2026-01"},
-        {"id":"mortgage","cls":"liability","group":"负债","name":"住房贷款","account":"招商银行","currency":"CNY","value":820000}
+        {
+          "id": "cash-cny",
+          "cls": "cash",
+          "group": "现金",
+          "name": "招商银行·活期",
+          "account": "招商银行",
+          "currency": "CNY",
+          "value": 108000
+        },
+        {
+          "id": "cash-usd",
+          "cls": "cash",
+          "group": "现金",
+          "name": "盈透证券·美元余额",
+          "account": "盈透证券",
+          "currency": "USD",
+          "value": 2200
+        },
+        {
+          "id": "stock-voo",
+          "cls": "stock",
+          "group": "美股",
+          "name": "VOO",
+          "account": "盈透证券",
+          "currency": "USD",
+          "qty": 12,
+          "price": 545,
+          "auto": true,
+          "market": "US",
+          "symbol": "VOO",
+          "priceStatus": "ok",
+          "priceAt": "2026-01-30(历史收盘)",
+          "costBasisCNY": 46826.4
+        },
+        {
+          "id": "stock-moutai",
+          "cls": "stock",
+          "group": "A股",
+          "name": "贵州茅台",
+          "account": "招商证券",
+          "currency": "CNY",
+          "qty": 30,
+          "price": 1500,
+          "auto": true,
+          "market": "CN",
+          "symbol": "600519",
+          "priceStatus": "ok",
+          "priceAt": "2026-01-30(历史收盘)",
+          "costBasisCNY": 45000
+        },
+        {
+          "id": "fund-gold",
+          "cls": "fund",
+          "group": "基金",
+          "name": "黄金 ETF",
+          "account": "支付宝",
+          "currency": "CNY",
+          "value": 38000,
+          "manualPriceAt": "2026-01",
+          "costBasisCNY": 38000
+        },
+        {
+          "id": "home",
+          "cls": "fixed",
+          "group": "固定资产",
+          "name": "自住房",
+          "currency": "CNY",
+          "value": 1800000,
+          "manualPriceAt": "2026-01",
+          "costBasisCNY": 1800000,
+          "account": ""
+        },
+        {
+          "id": "mortgage",
+          "cls": "liability",
+          "group": "负债",
+          "name": "住房贷款",
+          "account": "招商银行",
+          "currency": "CNY",
+          "value": 820000
+        }
       ],
-      "flows":[
-        {"id":"jan-income","kind":"income","date":"2026-01-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"演示收入"},
-        {"id":"jan-expense","kind":"expense","date":"2026-01-22","subcat":"日常","amount":9800,"currency":"CNY","fromAssetId":"cash-cny","note":"演示支出"},
-        {"id":"jan-repay","kind":"repay","date":"2026-01-28","amount":4500,"currency":"CNY","fromAssetId":"cash-cny","toAssetId":"mortgage","note":"演示还款"}
+      "flows": [
+        {
+          "id": "jan-income",
+          "kind": "income",
+          "date": "2026-01-10",
+          "subcat": "工资",
+          "amount": 32000,
+          "currency": "CNY",
+          "toAssetId": "cash-cny",
+          "note": "演示收入",
+          "nonCashIncome": false,
+          "incomeAssetMode": "value"
+        },
+        {
+          "id": "jan-expense",
+          "kind": "expense",
+          "date": "2026-01-22",
+          "subcat": "日常",
+          "amount": 9800,
+          "currency": "CNY",
+          "fromAssetId": "cash-cny",
+          "note": "演示支出"
+        },
+        {
+          "id": "jan-repay",
+          "kind": "repay",
+          "date": "2026-01-28",
+          "amount": 4500,
+          "currency": "CNY",
+          "fromAssetId": "cash-cny",
+          "toAssetId": "mortgage",
+          "note": "演示还款"
+        }
       ],
-      "fxRates":{"CNY":1,"USD":7.16,"_status":{"USD":"ok"},"_date":"2026-01-30"}
+      "fxRates": {
+        "CNY": 1,
+        "USD": 7.16,
+        "_status": {
+          "USD": "ok"
+        },
+        "_date": "2026-01-30"
+      },
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z",
+      "revision": 0,
+      "sourceRevision": 0,
+      "changeLog": []
     },
     "2026-02": {
+      "opening": [
+        {
+          "id": "cash-cny",
+          "cls": "cash",
+          "name": "招商银行·活期",
+          "value": 108000
+        },
+        {
+          "id": "cash-usd",
+          "cls": "cash",
+          "name": "盈透证券·美元余额",
+          "value": 2200
+        },
+        {
+          "id": "stock-voo",
+          "cls": "stock",
+          "name": "VOO",
+          "qty": 12,
+          "price": 545
+        },
+        {
+          "id": "stock-moutai",
+          "cls": "stock",
+          "name": "贵州茅台",
+          "qty": 30,
+          "price": 1500
+        },
+        {
+          "id": "fund-gold",
+          "cls": "fund",
+          "name": "黄金 ETF",
+          "value": 38000
+        },
+        {
+          "id": "home",
+          "cls": "fixed",
+          "name": "自住房",
+          "value": 1800000
+        },
+        {
+          "id": "mortgage",
+          "cls": "liability",
+          "name": "住房贷款",
+          "value": 820000
+        }
+      ],
       "balance": [
-        {"id":"cash-cny","cls":"cash","group":"现金","name":"招商银行·活期","account":"招商银行","currency":"CNY","value":126000},
-        {"id":"cash-usd","cls":"cash","group":"现金","name":"盈透证券·美元余额","account":"盈透证券","currency":"USD","value":2900},
-        {"id":"stock-voo","cls":"stock","group":"美股","name":"VOO","account":"盈透证券","currency":"USD","qty":12,"price":560,"auto":true,"market":"US","symbol":"VOO","priceStatus":"ok","priceAt":"2026-02-27(历史收盘)"},
-        {"id":"stock-moutai","cls":"stock","group":"A股","name":"贵州茅台","account":"招商证券","currency":"CNY","qty":30,"price":1480,"auto":true,"market":"CN","symbol":"600519","priceStatus":"ok","priceAt":"2026-02-27(历史收盘)"},
-        {"id":"fund-gold","cls":"fund","group":"基金","name":"黄金 ETF","account":"支付宝","currency":"CNY","value":40500,"manualPriceAt":"2026-02"},
-        {"id":"home","cls":"fixed","group":"固定资产","name":"自住房","currency":"CNY","value":1800000,"manualPriceAt":"2026-02"},
-        {"id":"mortgage","cls":"liability","group":"负债","name":"住房贷款","account":"招商银行","currency":"CNY","value":815500}
+        {
+          "id": "cash-cny",
+          "cls": "cash",
+          "group": "现金",
+          "name": "招商银行·活期",
+          "account": "招商银行",
+          "currency": "CNY",
+          "value": 126000
+        },
+        {
+          "id": "cash-usd",
+          "cls": "cash",
+          "group": "现金",
+          "name": "盈透证券·美元余额",
+          "account": "盈透证券",
+          "currency": "USD",
+          "value": 2900
+        },
+        {
+          "id": "stock-voo",
+          "cls": "stock",
+          "group": "美股",
+          "name": "VOO",
+          "account": "盈透证券",
+          "currency": "USD",
+          "qty": 12,
+          "price": 560,
+          "auto": true,
+          "market": "US",
+          "symbol": "VOO",
+          "priceStatus": "ok",
+          "priceAt": "2026-02-27(历史收盘)",
+          "costBasisCNY": 48249.6
+        },
+        {
+          "id": "stock-moutai",
+          "cls": "stock",
+          "group": "A股",
+          "name": "贵州茅台",
+          "account": "招商证券",
+          "currency": "CNY",
+          "qty": 30,
+          "price": 1480,
+          "auto": true,
+          "market": "CN",
+          "symbol": "600519",
+          "priceStatus": "ok",
+          "priceAt": "2026-02-27(历史收盘)",
+          "costBasisCNY": 44400
+        },
+        {
+          "id": "fund-gold",
+          "cls": "fund",
+          "group": "基金",
+          "name": "黄金 ETF",
+          "account": "支付宝",
+          "currency": "CNY",
+          "value": 40500,
+          "manualPriceAt": "2026-02",
+          "costBasisCNY": 40500
+        },
+        {
+          "id": "home",
+          "cls": "fixed",
+          "group": "固定资产",
+          "name": "自住房",
+          "currency": "CNY",
+          "value": 1800000,
+          "manualPriceAt": "2026-02",
+          "costBasisCNY": 1800000,
+          "account": ""
+        },
+        {
+          "id": "mortgage",
+          "cls": "liability",
+          "group": "负债",
+          "name": "住房贷款",
+          "account": "招商银行",
+          "currency": "CNY",
+          "value": 815500
+        }
       ],
-      "flows":[
-        {"id":"feb-income","kind":"income","date":"2026-02-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"演示收入"},
-        {"id":"feb-expense","kind":"expense","date":"2026-02-16","subcat":"旅行","amount":7600,"currency":"CNY","fromAssetId":"cash-cny","note":"演示支出"},
-        {"id":"feb-transfer","kind":"transfer","date":"2026-02-20","amount":14000,"toAmount":1950,"currency":"CNY","toCurrency":"USD","fxRate":0.1393,"fromAssetId":"cash-cny","toAssetId":"cash-usd","note":"换汇至美元账户"}
+      "flows": [
+        {
+          "id": "feb-income",
+          "kind": "income",
+          "date": "2026-02-10",
+          "subcat": "工资",
+          "amount": 32000,
+          "currency": "CNY",
+          "toAssetId": "cash-cny",
+          "note": "演示收入",
+          "nonCashIncome": false,
+          "incomeAssetMode": "value"
+        },
+        {
+          "id": "feb-expense",
+          "kind": "expense",
+          "date": "2026-02-16",
+          "subcat": "旅行",
+          "amount": 7600,
+          "currency": "CNY",
+          "fromAssetId": "cash-cny",
+          "note": "演示支出"
+        },
+        {
+          "id": "feb-transfer",
+          "kind": "transfer",
+          "date": "2026-02-20",
+          "amount": 14000,
+          "toAmount": 1950,
+          "currency": "CNY",
+          "toCurrency": "USD",
+          "fxRate": 0.1393,
+          "fromAssetId": "cash-cny",
+          "toAssetId": "cash-usd",
+          "note": "换汇至美元账户"
+        },
+        {
+          "id": "2026-02-migration-cash-cny",
+          "kind": "valuation",
+          "date": "2026-02-28",
+          "amount": 7600,
+          "currency": "CNY",
+          "toAssetId": "cash-cny",
+          "note": "演示账本余额调整"
+        },
+        {
+          "id": "2026-02-migration-cash-usd",
+          "kind": "valuation",
+          "date": "2026-02-28",
+          "amount": -1250,
+          "currency": "USD",
+          "toAssetId": "cash-usd",
+          "note": "演示账本余额调整"
+        },
+        {
+          "id": "2026-02-migration-fund-gold",
+          "kind": "valuation",
+          "date": "2026-02-28",
+          "amount": 2500,
+          "currency": "CNY",
+          "toAssetId": "fund-gold",
+          "note": "演示账本余额调整"
+        },
+        {
+          "id": "2026-02-migration-mortgage",
+          "kind": "valuation",
+          "date": "2026-02-28",
+          "amount": -4500,
+          "currency": "CNY",
+          "toAssetId": "mortgage",
+          "note": "演示账本余额调整"
+        }
       ],
-      "fxRates":{"CNY":1,"USD":7.18,"_status":{"USD":"ok"},"_date":"2026-02-27"},
-      "copiedFrom":"2026-01"
+      "fxRates": {
+        "CNY": 1,
+        "USD": 7.18,
+        "_status": {
+          "USD": "ok"
+        },
+        "_date": "2026-02-27"
+      },
+      "copiedFrom": "2026-01",
+      "createdAt": "2026-02-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z",
+      "revision": 0,
+      "sourceRevision": 0,
+      "changeLog": []
     },
     "2026-03": {
+      "opening": [
+        {
+          "id": "cash-cny",
+          "cls": "cash",
+          "name": "招商银行·活期",
+          "value": 126000
+        },
+        {
+          "id": "cash-usd",
+          "cls": "cash",
+          "name": "盈透证券·美元余额",
+          "value": 2900
+        },
+        {
+          "id": "stock-voo",
+          "cls": "stock",
+          "name": "VOO",
+          "qty": 12,
+          "price": 560
+        },
+        {
+          "id": "stock-moutai",
+          "cls": "stock",
+          "name": "贵州茅台",
+          "qty": 30,
+          "price": 1480
+        },
+        {
+          "id": "fund-gold",
+          "cls": "fund",
+          "name": "黄金 ETF",
+          "value": 40500
+        },
+        {
+          "id": "home",
+          "cls": "fixed",
+          "name": "自住房",
+          "value": 1800000
+        },
+        {
+          "id": "mortgage",
+          "cls": "liability",
+          "name": "住房贷款",
+          "value": 815500
+        }
+      ],
       "balance": [
-        {"id":"cash-cny","cls":"cash","group":"现金","name":"招商银行·活期","account":"招商银行","currency":"CNY","value":103000},
-        {"id":"cash-usd","cls":"cash","group":"现金","name":"盈透证券·美元余额","account":"盈透证券","currency":"USD","value":1750},
-        {"id":"stock-voo","cls":"stock","group":"美股","name":"VOO","account":"盈透证券","currency":"USD","qty":14,"price":540,"auto":true,"market":"US","symbol":"VOO","priceStatus":"ok","priceAt":"2026-03-31(历史收盘)"},
-        {"id":"stock-moutai","cls":"stock","group":"A股","name":"贵州茅台","account":"招商证券","currency":"CNY","qty":30,"price":1525,"auto":true,"market":"CN","symbol":"600519","priceStatus":"ok","priceAt":"2026-03-31(历史收盘)"},
-        {"id":"fund-gold","cls":"fund","group":"基金","name":"黄金 ETF","account":"支付宝","currency":"CNY","value":43000,"manualPriceAt":"2026-03"},
-        {"id":"home","cls":"fixed","group":"固定资产","name":"自住房","currency":"CNY","value":1805000,"manualPriceAt":"2026-03"},
-        {"id":"mortgage","cls":"liability","group":"负债","name":"住房贷款","account":"招商银行","currency":"CNY","value":811000}
+        {
+          "id": "cash-cny",
+          "cls": "cash",
+          "group": "现金",
+          "name": "招商银行·活期",
+          "account": "招商银行",
+          "currency": "CNY",
+          "value": 103000
+        },
+        {
+          "id": "cash-usd",
+          "cls": "cash",
+          "group": "现金",
+          "name": "盈透证券·美元余额",
+          "account": "盈透证券",
+          "currency": "USD",
+          "value": 1750
+        },
+        {
+          "id": "stock-voo",
+          "cls": "stock",
+          "group": "美股",
+          "name": "VOO",
+          "account": "盈透证券",
+          "currency": "USD",
+          "qty": 14,
+          "price": 540,
+          "auto": true,
+          "market": "US",
+          "symbol": "VOO",
+          "priceStatus": "ok",
+          "priceAt": "2026-03-31(历史收盘)",
+          "costBasisCNY": 54356.4
+        },
+        {
+          "id": "stock-moutai",
+          "cls": "stock",
+          "group": "A股",
+          "name": "贵州茅台",
+          "account": "招商证券",
+          "currency": "CNY",
+          "qty": 30,
+          "price": 1525,
+          "auto": true,
+          "market": "CN",
+          "symbol": "600519",
+          "priceStatus": "ok",
+          "priceAt": "2026-03-31(历史收盘)",
+          "costBasisCNY": 45750
+        },
+        {
+          "id": "fund-gold",
+          "cls": "fund",
+          "group": "基金",
+          "name": "黄金 ETF",
+          "account": "支付宝",
+          "currency": "CNY",
+          "value": 43000,
+          "manualPriceAt": "2026-03",
+          "costBasisCNY": 43000
+        },
+        {
+          "id": "home",
+          "cls": "fixed",
+          "group": "固定资产",
+          "name": "自住房",
+          "currency": "CNY",
+          "value": 1805000,
+          "manualPriceAt": "2026-03",
+          "costBasisCNY": 1805000,
+          "account": ""
+        },
+        {
+          "id": "mortgage",
+          "cls": "liability",
+          "group": "负债",
+          "name": "住房贷款",
+          "account": "招商银行",
+          "currency": "CNY",
+          "value": 811000
+        }
       ],
-      "flows":[
-        {"id":"mar-income","kind":"income","date":"2026-03-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"演示收入"},
-        {"id":"mar-buy","kind":"buy","date":"2026-03-18","amount":10500,"holdingAmount":1460,"currency":"CNY","holdingCurrency":"USD","qty":2,"price":730,"fxRate":7.19,"fromAssetId":"cash-cny","toAssetId":"stock-voo","note":"买入美股 ETF"},
-        {"id":"mar-expense","kind":"expense","date":"2026-03-25","subcat":"日常","amount":8800,"currency":"CNY","fromAssetId":"cash-cny","note":"演示支出"},
-        {"id":"mar-home-valuation","kind":"valuation","date":"2026-03-31","amount":5000,"currency":"CNY","toAssetId":"home","note":"手工估值调整"}
+      "flows": [
+        {
+          "id": "mar-income",
+          "kind": "income",
+          "date": "2026-03-10",
+          "subcat": "工资",
+          "amount": 32000,
+          "currency": "CNY",
+          "toAssetId": "cash-cny",
+          "note": "演示收入",
+          "nonCashIncome": false,
+          "incomeAssetMode": "value"
+        },
+        {
+          "id": "mar-buy",
+          "kind": "buy",
+          "date": "2026-03-18",
+          "amount": 10500,
+          "holdingAmount": 1460,
+          "currency": "CNY",
+          "holdingCurrency": "USD",
+          "qty": 2,
+          "price": 730,
+          "fxRate": 7.19,
+          "fromAssetId": "cash-cny",
+          "toAssetId": "stock-voo",
+          "note": "买入美股 ETF"
+        },
+        {
+          "id": "mar-expense",
+          "kind": "expense",
+          "date": "2026-03-25",
+          "subcat": "日常",
+          "amount": 8800,
+          "currency": "CNY",
+          "fromAssetId": "cash-cny",
+          "note": "演示支出"
+        },
+        {
+          "id": "mar-home-valuation",
+          "kind": "valuation",
+          "date": "2026-03-31",
+          "amount": 5000,
+          "currency": "CNY",
+          "toAssetId": "home",
+          "note": "手工估值调整"
+        },
+        {
+          "id": "2026-03-migration-cash-cny",
+          "kind": "valuation",
+          "date": "2026-03-31",
+          "amount": -35700,
+          "currency": "CNY",
+          "toAssetId": "cash-cny",
+          "note": "演示账本余额调整"
+        },
+        {
+          "id": "2026-03-migration-cash-usd",
+          "kind": "valuation",
+          "date": "2026-03-31",
+          "amount": -1150,
+          "currency": "USD",
+          "toAssetId": "cash-usd",
+          "note": "演示账本余额调整"
+        },
+        {
+          "id": "2026-03-migration-fund-gold",
+          "kind": "valuation",
+          "date": "2026-03-31",
+          "amount": 2500,
+          "currency": "CNY",
+          "toAssetId": "fund-gold",
+          "note": "演示账本余额调整"
+        },
+        {
+          "id": "2026-03-migration-mortgage",
+          "kind": "valuation",
+          "date": "2026-03-31",
+          "amount": -4500,
+          "currency": "CNY",
+          "toAssetId": "mortgage",
+          "note": "演示账本余额调整"
+        }
       ],
-      "fxRates":{"CNY":1,"USD":7.19,"_status":{"USD":"ok"},"_date":"2026-03-31"},
-      "copiedFrom":"2026-02"
+      "fxRates": {
+        "CNY": 1,
+        "USD": 7.19,
+        "_status": {
+          "USD": "ok"
+        },
+        "_date": "2026-03-31"
+      },
+      "copiedFrom": "2026-02",
+      "createdAt": "2026-03-01T00:00:00.000Z",
+      "updatedAt": "2026-03-01T00:00:00.000Z",
+      "revision": 0,
+      "sourceRevision": 0,
+      "changeLog": []
     },
     "2026-04": {
+      "opening": [
+        {
+          "id": "cash-cny",
+          "cls": "cash",
+          "name": "招商银行·活期",
+          "value": 103000
+        },
+        {
+          "id": "cash-usd",
+          "cls": "cash",
+          "name": "盈透证券·美元余额",
+          "value": 1750
+        },
+        {
+          "id": "stock-voo",
+          "cls": "stock",
+          "name": "VOO",
+          "qty": 14,
+          "price": 540
+        },
+        {
+          "id": "stock-moutai",
+          "cls": "stock",
+          "name": "贵州茅台",
+          "qty": 30,
+          "price": 1525
+        },
+        {
+          "id": "fund-gold",
+          "cls": "fund",
+          "name": "黄金 ETF",
+          "value": 43000
+        },
+        {
+          "id": "home",
+          "cls": "fixed",
+          "name": "自住房",
+          "value": 1805000
+        },
+        {
+          "id": "mortgage",
+          "cls": "liability",
+          "name": "住房贷款",
+          "value": 811000
+        }
+      ],
       "balance": [
-        {"id":"cash-cny","cls":"cash","group":"现金","name":"招商银行·活期","account":"招商银行","currency":"CNY","value":138000},
-        {"id":"cash-usd","cls":"cash","group":"现金","name":"盈透证券·美元余额","account":"盈透证券","currency":"USD","value":1600},
-        {"id":"stock-voo","cls":"stock","group":"美股","name":"VOO","account":"盈透证券","currency":"USD","qty":14,"price":575,"auto":true,"market":"US","symbol":"VOO","priceStatus":"ok","priceAt":"2026-04-30(历史收盘)"},
-        {"id":"stock-moutai","cls":"stock","group":"A股","name":"贵州茅台","account":"招商证券","currency":"CNY","qty":32,"price":1570,"auto":true,"market":"CN","symbol":"600519","priceStatus":"ok","priceAt":"2026-04-30(历史收盘)"},
-        {"id":"fund-gold","cls":"fund","group":"基金","name":"黄金 ETF","account":"支付宝","currency":"CNY","value":45000,"manualPriceAt":"2026-04"},
-        {"id":"home","cls":"fixed","group":"固定资产","name":"自住房","currency":"CNY","value":1805000,"manualPriceAt":"2026-04"},
-        {"id":"mortgage","cls":"liability","group":"负债","name":"住房贷款","account":"招商银行","currency":"CNY","value":806500}
+        {
+          "id": "cash-cny",
+          "cls": "cash",
+          "group": "现金",
+          "name": "招商银行·活期",
+          "account": "招商银行",
+          "currency": "CNY",
+          "value": 138000
+        },
+        {
+          "id": "cash-usd",
+          "cls": "cash",
+          "group": "现金",
+          "name": "盈透证券·美元余额",
+          "account": "盈透证券",
+          "currency": "USD",
+          "value": 1600
+        },
+        {
+          "id": "stock-voo",
+          "cls": "stock",
+          "group": "美股",
+          "name": "VOO",
+          "account": "盈透证券",
+          "currency": "USD",
+          "qty": 14,
+          "price": 575,
+          "auto": true,
+          "market": "US",
+          "symbol": "VOO",
+          "priceStatus": "ok",
+          "priceAt": "2026-04-30(历史收盘)",
+          "costBasisCNY": 58040.5
+        },
+        {
+          "id": "stock-moutai",
+          "cls": "stock",
+          "group": "A股",
+          "name": "贵州茅台",
+          "account": "招商证券",
+          "currency": "CNY",
+          "qty": 32,
+          "price": 1570,
+          "auto": true,
+          "market": "CN",
+          "symbol": "600519",
+          "priceStatus": "ok",
+          "priceAt": "2026-04-30(历史收盘)",
+          "costBasisCNY": 50240
+        },
+        {
+          "id": "fund-gold",
+          "cls": "fund",
+          "group": "基金",
+          "name": "黄金 ETF",
+          "account": "支付宝",
+          "currency": "CNY",
+          "value": 45000,
+          "manualPriceAt": "2026-04",
+          "costBasisCNY": 45000
+        },
+        {
+          "id": "home",
+          "cls": "fixed",
+          "group": "固定资产",
+          "name": "自住房",
+          "currency": "CNY",
+          "value": 1805000,
+          "manualPriceAt": "2026-04",
+          "costBasisCNY": 1805000,
+          "account": ""
+        },
+        {
+          "id": "mortgage",
+          "cls": "liability",
+          "group": "负债",
+          "name": "住房贷款",
+          "account": "招商银行",
+          "currency": "CNY",
+          "value": 806500
+        }
       ],
-      "flows":[
-        {"id":"apr-income","kind":"income","date":"2026-04-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"演示收入"},
-        {"id":"apr-buy","kind":"buy","date":"2026-04-17","amount":3100,"currency":"CNY","qty":2,"price":1550,"fromAssetId":"cash-cny","toAssetId":"stock-moutai","note":"调仓买入 A 股"},
-        {"id":"apr-repay","kind":"repay","date":"2026-04-28","amount":4500,"currency":"CNY","fromAssetId":"cash-cny","toAssetId":"mortgage","note":"演示还款"}
+      "flows": [
+        {
+          "id": "apr-income",
+          "kind": "income",
+          "date": "2026-04-10",
+          "subcat": "工资",
+          "amount": 32000,
+          "currency": "CNY",
+          "toAssetId": "cash-cny",
+          "note": "演示收入",
+          "nonCashIncome": false,
+          "incomeAssetMode": "value"
+        },
+        {
+          "id": "apr-buy",
+          "kind": "buy",
+          "date": "2026-04-17",
+          "amount": 3100,
+          "currency": "CNY",
+          "qty": 2,
+          "price": 1550,
+          "fromAssetId": "cash-cny",
+          "toAssetId": "stock-moutai",
+          "note": "调仓买入 A 股"
+        },
+        {
+          "id": "apr-repay",
+          "kind": "repay",
+          "date": "2026-04-28",
+          "amount": 4500,
+          "currency": "CNY",
+          "fromAssetId": "cash-cny",
+          "toAssetId": "mortgage",
+          "note": "演示还款"
+        },
+        {
+          "id": "2026-04-migration-cash-cny",
+          "kind": "valuation",
+          "date": "2026-04-30",
+          "amount": 10600,
+          "currency": "CNY",
+          "toAssetId": "cash-cny",
+          "note": "演示账本余额调整"
+        },
+        {
+          "id": "2026-04-migration-cash-usd",
+          "kind": "valuation",
+          "date": "2026-04-30",
+          "amount": -150,
+          "currency": "USD",
+          "toAssetId": "cash-usd",
+          "note": "演示账本余额调整"
+        },
+        {
+          "id": "2026-04-migration-fund-gold",
+          "kind": "valuation",
+          "date": "2026-04-30",
+          "amount": 2000,
+          "currency": "CNY",
+          "toAssetId": "fund-gold",
+          "note": "演示账本余额调整"
+        }
       ],
-      "fxRates":{"CNY":1,"USD":7.21,"_status":{"USD":"ok"},"_date":"2026-04-30"},
-      "copiedFrom":"2026-03"
+      "fxRates": {
+        "CNY": 1,
+        "USD": 7.21,
+        "_status": {
+          "USD": "ok"
+        },
+        "_date": "2026-04-30"
+      },
+      "copiedFrom": "2026-03",
+      "createdAt": "2026-04-01T00:00:00.000Z",
+      "updatedAt": "2026-04-01T00:00:00.000Z",
+      "revision": 0,
+      "sourceRevision": 0,
+      "changeLog": []
     },
     "2026-05": {
+      "opening": [
+        {
+          "id": "cash-cny",
+          "cls": "cash",
+          "name": "招商银行·活期",
+          "value": 138000
+        },
+        {
+          "id": "cash-usd",
+          "cls": "cash",
+          "name": "盈透证券·美元余额",
+          "value": 1600
+        },
+        {
+          "id": "stock-voo",
+          "cls": "stock",
+          "name": "VOO",
+          "qty": 14,
+          "price": 575
+        },
+        {
+          "id": "stock-moutai",
+          "cls": "stock",
+          "name": "贵州茅台",
+          "qty": 32,
+          "price": 1570
+        },
+        {
+          "id": "fund-gold",
+          "cls": "fund",
+          "name": "黄金 ETF",
+          "value": 45000
+        },
+        {
+          "id": "home",
+          "cls": "fixed",
+          "name": "自住房",
+          "value": 1805000
+        },
+        {
+          "id": "mortgage",
+          "cls": "liability",
+          "name": "住房贷款",
+          "value": 806500
+        }
+      ],
       "balance": [
-        {"id":"cash-cny","cls":"cash","group":"现金","name":"招商银行·活期","account":"招商银行","currency":"CNY","value":121000},
-        {"id":"cash-usd","cls":"cash","group":"现金","name":"盈透证券·美元余额","account":"盈透证券","currency":"USD","value":2550},
-        {"id":"stock-voo","cls":"stock","group":"美股","name":"VOO","account":"盈透证券","currency":"USD","qty":13,"price":590,"auto":true,"market":"US","symbol":"VOO","priceStatus":"ok","priceAt":"2026-05-29(历史收盘)"},
-        {"id":"stock-moutai","cls":"stock","group":"A股","name":"贵州茅台","account":"招商证券","currency":"CNY","qty":32,"price":1540,"auto":true,"market":"CN","symbol":"600519","priceStatus":"ok","priceAt":"2026-05-29(历史收盘)"},
-        {"id":"fund-gold","cls":"fund","group":"基金","name":"黄金 ETF","account":"支付宝","currency":"CNY","value":47000,"manualPriceAt":"2026-05"},
-        {"id":"home","cls":"fixed","group":"固定资产","name":"自住房","currency":"CNY","value":1810000,"manualPriceAt":"2026-05"},
-        {"id":"mortgage","cls":"liability","group":"负债","name":"住房贷款","account":"招商银行","currency":"CNY","value":802000}
+        {
+          "id": "cash-cny",
+          "cls": "cash",
+          "group": "现金",
+          "name": "招商银行·活期",
+          "account": "招商银行",
+          "currency": "CNY",
+          "value": 121000
+        },
+        {
+          "id": "cash-usd",
+          "cls": "cash",
+          "group": "现金",
+          "name": "盈透证券·美元余额",
+          "account": "盈透证券",
+          "currency": "USD",
+          "value": 2550
+        },
+        {
+          "id": "stock-voo",
+          "cls": "stock",
+          "group": "美股",
+          "name": "VOO",
+          "account": "盈透证券",
+          "currency": "USD",
+          "qty": 13,
+          "price": 590,
+          "auto": true,
+          "market": "US",
+          "symbol": "VOO",
+          "priceStatus": "ok",
+          "priceAt": "2026-05-29(历史收盘)",
+          "costBasisCNY": 55454.100000000006
+        },
+        {
+          "id": "stock-moutai",
+          "cls": "stock",
+          "group": "A股",
+          "name": "贵州茅台",
+          "account": "招商证券",
+          "currency": "CNY",
+          "qty": 32,
+          "price": 1540,
+          "auto": true,
+          "market": "CN",
+          "symbol": "600519",
+          "priceStatus": "ok",
+          "priceAt": "2026-05-29(历史收盘)",
+          "costBasisCNY": 49280
+        },
+        {
+          "id": "fund-gold",
+          "cls": "fund",
+          "group": "基金",
+          "name": "黄金 ETF",
+          "account": "支付宝",
+          "currency": "CNY",
+          "value": 47000,
+          "manualPriceAt": "2026-05",
+          "costBasisCNY": 47000
+        },
+        {
+          "id": "home",
+          "cls": "fixed",
+          "group": "固定资产",
+          "name": "自住房",
+          "currency": "CNY",
+          "value": 1810000,
+          "manualPriceAt": "2026-05",
+          "costBasisCNY": 1810000,
+          "account": ""
+        },
+        {
+          "id": "mortgage",
+          "cls": "liability",
+          "group": "负债",
+          "name": "住房贷款",
+          "account": "招商银行",
+          "currency": "CNY",
+          "value": 802000
+        }
       ],
-      "flows":[
-        {"id":"may-income","kind":"income","date":"2026-05-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"演示收入"},
-        {"id":"may-expense","kind":"expense","date":"2026-05-19","subcat":"购物","amount":12800,"currency":"CNY","fromAssetId":"cash-cny","note":"演示支出"},
-        {"id":"may-sell","kind":"sell","date":"2026-05-26","amount":620,"holdingAmount":85,"currency":"CNY","holdingCurrency":"USD","qty":1,"price":85,"fxRate":7.29,"fromAssetId":"stock-voo","toAssetId":"cash-cny","note":"卖出部分美股 ETF"}
+      "flows": [
+        {
+          "id": "may-income",
+          "kind": "income",
+          "date": "2026-05-10",
+          "subcat": "工资",
+          "amount": 32000,
+          "currency": "CNY",
+          "toAssetId": "cash-cny",
+          "note": "演示收入",
+          "nonCashIncome": false,
+          "incomeAssetMode": "value"
+        },
+        {
+          "id": "may-expense",
+          "kind": "expense",
+          "date": "2026-05-19",
+          "subcat": "购物",
+          "amount": 12800,
+          "currency": "CNY",
+          "fromAssetId": "cash-cny",
+          "note": "演示支出"
+        },
+        {
+          "id": "may-sell",
+          "kind": "sell",
+          "date": "2026-05-26",
+          "amount": 620,
+          "holdingAmount": 85,
+          "currency": "CNY",
+          "holdingCurrency": "USD",
+          "qty": 1,
+          "price": 85,
+          "fxRate": 7.29,
+          "fromAssetId": "stock-voo",
+          "toAssetId": "cash-cny",
+          "note": "卖出部分美股 ETF"
+        },
+        {
+          "id": "2026-05-migration-cash-cny",
+          "kind": "valuation",
+          "date": "2026-05-31",
+          "amount": -36820,
+          "currency": "CNY",
+          "toAssetId": "cash-cny",
+          "note": "演示账本余额调整"
+        },
+        {
+          "id": "2026-05-migration-cash-usd",
+          "kind": "valuation",
+          "date": "2026-05-31",
+          "amount": 950,
+          "currency": "USD",
+          "toAssetId": "cash-usd",
+          "note": "演示账本余额调整"
+        },
+        {
+          "id": "2026-05-migration-fund-gold",
+          "kind": "valuation",
+          "date": "2026-05-31",
+          "amount": 2000,
+          "currency": "CNY",
+          "toAssetId": "fund-gold",
+          "note": "演示账本余额调整"
+        },
+        {
+          "id": "2026-05-migration-home",
+          "kind": "valuation",
+          "date": "2026-05-31",
+          "amount": 5000,
+          "currency": "CNY",
+          "toAssetId": "home",
+          "note": "演示账本余额调整"
+        },
+        {
+          "id": "2026-05-migration-mortgage",
+          "kind": "valuation",
+          "date": "2026-05-31",
+          "amount": -4500,
+          "currency": "CNY",
+          "toAssetId": "mortgage",
+          "note": "演示账本余额调整"
+        }
       ],
-      "fxRates":{"CNY":1,"USD":7.23,"_status":{"USD":"ok"},"_date":"2026-05-29"},
-      "copiedFrom":"2026-04"
+      "fxRates": {
+        "CNY": 1,
+        "USD": 7.23,
+        "_status": {
+          "USD": "ok"
+        },
+        "_date": "2026-05-29"
+      },
+      "copiedFrom": "2026-04",
+      "createdAt": "2026-05-01T00:00:00.000Z",
+      "updatedAt": "2026-05-01T00:00:00.000Z",
+      "revision": 0,
+      "sourceRevision": 0,
+      "changeLog": []
     },
     "2026-06": {
+      "opening": [
+        {
+          "id": "cash-cny",
+          "cls": "cash",
+          "name": "招商银行·活期",
+          "value": 121000
+        },
+        {
+          "id": "cash-usd",
+          "cls": "cash",
+          "name": "盈透证券·美元余额",
+          "value": 2550
+        },
+        {
+          "id": "stock-voo",
+          "cls": "stock",
+          "name": "VOO",
+          "qty": 13,
+          "price": 590
+        },
+        {
+          "id": "stock-moutai",
+          "cls": "stock",
+          "name": "贵州茅台",
+          "qty": 32,
+          "price": 1540
+        },
+        {
+          "id": "fund-gold",
+          "cls": "fund",
+          "name": "黄金 ETF",
+          "value": 47000
+        },
+        {
+          "id": "home",
+          "cls": "fixed",
+          "name": "自住房",
+          "value": 1810000
+        },
+        {
+          "id": "mortgage",
+          "cls": "liability",
+          "name": "住房贷款",
+          "value": 802000
+        }
+      ],
       "balance": [
-        {"id":"cash-cny","cls":"cash","group":"现金","name":"招商银行·活期","account":"招商银行","currency":"CNY","value":146000},
-        {"id":"cash-usd","cls":"cash","group":"现金","name":"盈透证券·美元余额","account":"盈透证券","currency":"USD","value":1880},
-        {"id":"stock-voo","cls":"stock","group":"美股","name":"VOO","account":"盈透证券","currency":"USD","qty":15,"price":610,"auto":true,"market":"US","symbol":"VOO","priceStatus":"ok","priceAt":"2026-06-30(历史收盘)"},
-        {"id":"stock-moutai","cls":"stock","group":"A股","name":"贵州茅台","account":"招商证券","currency":"CNY","qty":30,"price":1605,"auto":true,"market":"CN","symbol":"600519","priceStatus":"ok","priceAt":"2026-06-30(历史收盘)"},
-        {"id":"fund-gold","cls":"fund","group":"基金","name":"黄金 ETF","account":"支付宝","currency":"CNY","value":49500,"manualPriceAt":"2026-06"},
-        {"id":"home","cls":"fixed","group":"固定资产","name":"自住房","currency":"CNY","value":1810000,"manualPriceAt":"2026-06"},
-        {"id":"mortgage","cls":"liability","group":"负债","name":"住房贷款","account":"招商银行","currency":"CNY","value":797500}
+        {
+          "id": "cash-cny",
+          "cls": "cash",
+          "group": "现金",
+          "name": "招商银行·活期",
+          "account": "招商银行",
+          "currency": "CNY",
+          "value": 146000
+        },
+        {
+          "id": "cash-usd",
+          "cls": "cash",
+          "group": "现金",
+          "name": "盈透证券·美元余额",
+          "account": "盈透证券",
+          "currency": "USD",
+          "value": 1880
+        },
+        {
+          "id": "stock-voo",
+          "cls": "stock",
+          "group": "美股",
+          "name": "VOO",
+          "account": "盈透证券",
+          "currency": "USD",
+          "qty": 15,
+          "price": 610,
+          "auto": true,
+          "market": "US",
+          "symbol": "VOO",
+          "priceStatus": "ok",
+          "priceAt": "2026-06-30(历史收盘)",
+          "costBasisCNY": 66337.5
+        },
+        {
+          "id": "stock-moutai",
+          "cls": "stock",
+          "group": "A股",
+          "name": "贵州茅台",
+          "account": "招商证券",
+          "currency": "CNY",
+          "qty": 30,
+          "price": 1605,
+          "auto": true,
+          "market": "CN",
+          "symbol": "600519",
+          "priceStatus": "ok",
+          "priceAt": "2026-06-30(历史收盘)",
+          "costBasisCNY": 48150
+        },
+        {
+          "id": "fund-gold",
+          "cls": "fund",
+          "group": "基金",
+          "name": "黄金 ETF",
+          "account": "支付宝",
+          "currency": "CNY",
+          "value": 49500,
+          "manualPriceAt": "2026-06",
+          "costBasisCNY": 49500
+        },
+        {
+          "id": "home",
+          "cls": "fixed",
+          "group": "固定资产",
+          "name": "自住房",
+          "currency": "CNY",
+          "value": 1810000,
+          "manualPriceAt": "2026-06",
+          "costBasisCNY": 1810000,
+          "account": ""
+        },
+        {
+          "id": "mortgage",
+          "cls": "liability",
+          "group": "负债",
+          "name": "住房贷款",
+          "account": "招商银行",
+          "currency": "CNY",
+          "value": 797500
+        }
       ],
-      "flows":[
-        {"id":"jun-income","kind":"income","date":"2026-06-10","subcat":"工资","amount":32000,"currency":"CNY","toAssetId":"cash-cny","note":"演示收入"},
-        {"id":"jun-dividend","kind":"dividend","date":"2026-06-13","holdingAmount":45,"holdingCurrency":"USD","amount":326.25,"currency":"CNY","fxRate":7.25,"fromAssetId":"stock-voo","toAssetId":"cash-cny","note":"VOO 季度分红"},
-        {"id":"jun-buy","kind":"buy","date":"2026-06-16","amount":9300,"holdingAmount":1280,"currency":"CNY","holdingCurrency":"USD","qty":2,"price":640,"fxRate":7.27,"fromAssetId":"cash-cny","toAssetId":"stock-voo","note":"买入美股 ETF"},
-        {"id":"jun-expense","kind":"expense","date":"2026-06-22","subcat":"保险","amount":6200,"currency":"CNY","fromAssetId":"cash-cny","note":"演示支出"},
-        {"id":"jun-repay","kind":"repay","date":"2026-06-28","amount":4500,"currency":"CNY","fromAssetId":"cash-cny","toAssetId":"mortgage","note":"演示还款"}
+      "flows": [
+        {
+          "id": "jun-income",
+          "kind": "income",
+          "date": "2026-06-10",
+          "subcat": "工资",
+          "amount": 32000,
+          "currency": "CNY",
+          "toAssetId": "cash-cny",
+          "note": "演示收入",
+          "nonCashIncome": false,
+          "incomeAssetMode": "value"
+        },
+        {
+          "id": "jun-assetIncome",
+          "kind": "assetIncome",
+          "date": "2026-06-13",
+          "holdingAmount": 45,
+          "holdingCurrency": "USD",
+          "amount": 326.25,
+          "currency": "CNY",
+          "fxRate": 7.25,
+          "fromAssetId": "stock-voo",
+          "toAssetId": "cash-cny",
+          "note": "VOO 季度分红"
+        },
+        {
+          "id": "jun-buy",
+          "kind": "buy",
+          "date": "2026-06-16",
+          "amount": 9300,
+          "holdingAmount": 1280,
+          "currency": "CNY",
+          "holdingCurrency": "USD",
+          "qty": 2,
+          "price": 640,
+          "fxRate": 7.27,
+          "fromAssetId": "cash-cny",
+          "toAssetId": "stock-voo",
+          "note": "买入美股 ETF"
+        },
+        {
+          "id": "jun-sell-moutai",
+          "kind": "sell",
+          "date": "2026-06-20",
+          "amount": 3210,
+          "currency": "CNY",
+          "qty": 2,
+          "price": 1605,
+          "fromAssetId": "stock-moutai",
+          "toAssetId": "cash-cny",
+          "note": "卖出部分贵州茅台"
+        },
+        {
+          "id": "jun-expense",
+          "kind": "expense",
+          "date": "2026-06-22",
+          "subcat": "保险",
+          "amount": 6200,
+          "currency": "CNY",
+          "fromAssetId": "cash-cny",
+          "note": "演示支出"
+        },
+        {
+          "id": "jun-repay",
+          "kind": "repay",
+          "date": "2026-06-28",
+          "amount": 4500,
+          "currency": "CNY",
+          "fromAssetId": "cash-cny",
+          "toAssetId": "mortgage",
+          "note": "演示还款"
+        },
+        {
+          "id": "2026-06-migration-cash-cny",
+          "kind": "valuation",
+          "date": "2026-06-30",
+          "amount": 9463.75,
+          "currency": "CNY",
+          "toAssetId": "cash-cny",
+          "note": "演示账本余额调整"
+        },
+        {
+          "id": "2026-06-migration-cash-usd",
+          "kind": "valuation",
+          "date": "2026-06-30",
+          "amount": -670,
+          "currency": "USD",
+          "toAssetId": "cash-usd",
+          "note": "演示账本余额调整"
+        },
+        {
+          "id": "2026-06-migration-fund-gold",
+          "kind": "valuation",
+          "date": "2026-06-30",
+          "amount": 2500,
+          "currency": "CNY",
+          "toAssetId": "fund-gold",
+          "note": "演示账本余额调整"
+        }
       ],
-      "fxRates":{"CNY":1,"USD":7.25,"_status":{"USD":"ok"},"_date":"2026-06-30"},
-      "copiedFrom":"2026-05"
+      "fxRates": {
+        "CNY": 1,
+        "USD": 7.25,
+        "_status": {
+          "USD": "ok"
+        },
+        "_date": "2026-06-30"
+      },
+      "copiedFrom": "2026-05",
+      "createdAt": "2026-06-01T00:00:00.000Z",
+      "updatedAt": "2026-06-01T00:00:00.000Z",
+      "revision": 0,
+      "sourceRevision": 0,
+      "changeLog": []
     }
   }
 }

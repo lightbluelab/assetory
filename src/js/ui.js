@@ -18,7 +18,7 @@ function renderStorageInfo(){
   if(!ledger){ $("storageInfo").textContent=""; return; }
   const bytes = new Blob([JSON.stringify(ledger)]).size;
   const mCount = Object.keys(ledger.months).length;
-  const location = demoMode ? " · 演示模式（未保存）" : (fileHandle ? ` · ${directoryHandle?.name||"本地文件"}` : " · 导入模式");
+  const location = demoMode ? " · 演示模式（未保存）" : (fileHandle ? ` · ${directoryHandle?.name||"本地文件"}` : ` · 导入模式${fallbackDirty?"（有未备份修改）":""}`);
   $("storageInfo").textContent = `${mCount} 个月 · ${(bytes/1024).toFixed(1)} KB${location}`;
 }
 
@@ -93,9 +93,8 @@ async function addMonth(){
       });
     month.fxRates = {...(ledger.months[prev].fxRates||{CNY:1})};
     month.copiedFrom = prev;
-    month.sourceUpdatedAt = ledger.months[prev].updatedAt||month.createdAt;
     month.sourceRevision=Number(ledger.months[prev].revision||0);
-    month.opening = month.balance.map(r=>({id:r.id,cls:r.cls,name:r.name,qty:r.qty,value:r.value,price:r.price}));
+    month.opening = month.balance.map(balanceSnapshotRow);
   }
   const previousActive=activeMonth; balanceEditMode=false; flowEditMode=false; activeMonth=k;
   const ok=await transact("添加月份",()=>{
@@ -104,7 +103,6 @@ async function addMonth(){
     if(prev&&next&&ledger.months[next]?.copiedFrom===prev){
       ledger.months[next].copiedFrom=k;
       ledger.months[next].sourceRevision=Number(month.revision||0);
-      ledger.months[next].sourceUpdatedAt=month.updatedAt;
     }
   },{touch:false});
   if(!ok) activeMonth=previousActive;
@@ -118,13 +116,11 @@ function renderMonthPanel(){
   const m = ledger.months[activeMonth];
   const t = monthTotals(activeMonth);
   const net = t.net || 0;
-  const prevKey=previousMonthKey(activeMonth);
-  const prevTotals=ledger.months[prevKey] ? monthTotals(prevKey) : null;
+  const prevKey=previousAvailableMonthKey(activeMonth);
+  const prevTotals=prevKey ? monthTotals(prevKey) : periodOpeningTotals(activeMonth);
   const cashFlow=cashFlowTotals(activeMonth);
   const prevCashFlow=prevTotals ? cashFlowTotals(prevKey) : null;
-  // 与整体趋势一致：若中间月份缺失，仍以前一个已存在月份作为盈亏比较基准。
-  const pnlPrevKey=monthKeys().filter(k=>k<activeMonth).pop()||null;
-  const assetPnl=assetProfitAttribution(activeMonth,pnlPrevKey);
+  const assetPnl=assetProfitAttribution(activeMonth,prevKey);
   const manualFields=new Set((reconcile(activeMonth)?.issues||[]).filter(i=>i.id&&i.field).map(i=>`${i.id}:${i.field}`));
   const metricCard=(label,value,prevValue)=>{
     const valueClass=value<0?"neg":"";
@@ -289,7 +285,6 @@ function renderMonthPanel(){
         month.flows=(month.flows||[]).filter(flow=>flow.fromAssetId!==row.id&&flow.toAssetId!==row.id);
         month.balance=(month.balance||[]).filter(asset=>asset.id!==row.id);
         if(month.opening) month.opening=month.opening.filter(asset=>asset.id!==row.id);
-        if(month.openingPrices) delete month.openingPrices[row.id];
         if(key!==activeMonth) markMonthChanged(key,`删除资产：${row.name}及关联流水`);
       });
       // 后续月份的期初可能仍带有被删除流水造成的现金影响，沿继承链重建。
@@ -372,7 +367,7 @@ function renderFlowSummary(){
   return `<div class="cashflow">
     <div class="cf-main">
       <div class="cf-item in"><span class="cf-lbl">现金流入</span><span class="cf-val num">+${amount(inflow)}</span>
-        <span class="cf-sub mut">现金收入 ${fmt(detail.income)} · 资产收益 ${fmt(detail.dividend)} · 卖出 ${fmt(detail.sell)}${detail.nonCashIncome?` · 非现金收入 ${fmt(detail.nonCashIncome)}（不计现金流）`:""}</span></div>
+        <span class="cf-sub mut">现金收入 ${fmt(detail.income)} · 资产收益 ${fmt(detail.assetIncome)} · 卖出 ${fmt(detail.sell)}${detail.nonCashIncome?` · 非现金收入 ${fmt(detail.nonCashIncome)}（不计现金流）`:""}</span></div>
       <div class="cf-arrow">→</div>
       <div class="cf-item out"><span class="cf-lbl">现金流出</span><span class="cf-val num">-${amount(outflow)}</span>
         <span class="cf-sub mut">支出 ${fmt(detail.expense)} · 买入 ${fmt(detail.buy)} · 还款 ${fmt(detail.repay)}</span></div>
@@ -393,11 +388,11 @@ function renderFlowRows(){
     const fromTxt = escapeHTML(f.fromAssetId ? assetLabel(f.fromAssetId) : (f.fromText||"-"));
     const toTxt   = escapeHTML(f.toAssetId ? assetLabel(f.toAssetId) : (f.toText||"-"));
     let amt = moneyCell(f.amount,f.currency||"CNY");
-    if(f.kind==="dividend" && f.holdingAmount!=null && f.holdingCurrency && f.holdingCurrency!==f.currency)
+    if(f.kind==="assetIncome" && f.holdingAmount!=null && f.holdingCurrency && f.holdingCurrency!==f.currency)
       amt = moneyCell(f.holdingAmount,f.holdingCurrency) + ' <span class="mut">→</span> ' + amt;
     if(f.qty!=null&&f.price!=null) amt += ` <span class="mut">(${fmtQuantity(f.qty)} × ${fmtPrice(f.price)})</span>`;
     const typeCell = escapeHTML(ft?ft.name:f.kind) + (f.subcat?` <span class="mut">/${escapeHTML(f.subcat)}</span>`:"");
-    const direction=f.kind==="valuation"?(Number(f.amount||0)>=0?"flow-in":"flow-out"):(f.kind==="income"||f.kind==="dividend"||f.kind==="sell")?"flow-in":((f.kind==="expense"||f.kind==="buy"||f.kind==="repay")?"flow-out":"");
+    const direction=f.kind==="valuation"?(Number(f.amount||0)>=0?"flow-in":"flow-out"):(f.kind==="income"||f.kind==="assetIncome"||f.kind==="sell")?"flow-in":((f.kind==="expense"||f.kind==="buy"||f.kind==="repay")?"flow-out":"");
     return `<tr>
       <td>${escapeHTML(f.date||"-")}</td>
       <td class="${direction}">${typeCell}</td>
@@ -445,7 +440,7 @@ function manualValuationDate(monthKey){
   const [year,month]=monthKey.split("-").map(Number);
   return `${monthKey}-${String(new Date(year,month,0).getDate()).padStart(2,"0")}`;
 }
-function supportsManualValuationFlow(row){ return ["cash","liability","fixed"].includes(row?.cls); }
+function supportsManualValuationFlow(row){ return ["cash","liability","fixed","fund"].includes(row?.cls); }
 function openAssetDialog(editIdx){
   const m = ledger.months[activeMonth];
   refreshAssetSuggestions();
@@ -523,7 +518,6 @@ $("btnAssetOk").addEventListener("click",async()=>{
         row.auto=$("adAuto").checked;
         if(row.auto){ row.market=textValue($("adMarket").value,16); row.symbol=textValue($("adSymbol").value,30); }
         else { row.priceStatus=null; row.market=""; row.symbol=""; }
-        if(quoteChanged&&m.openingPrices) delete m.openingPrices[row.id];
         if(priceChanged){ row.manualPriceAt=activeMonth; if(row.auto) row.priceStatus="manual"; }
       }else{
         const adjustment=nextPrice-Number(row.value||0);
@@ -567,7 +561,7 @@ $("btnAssetOk").addEventListener("click",async()=>{
   row.costBasisCNY=Math.abs((row.cls==="stock"?row.qty*row.price:row.value)*fxRate(row.currency));
   const ok=await transact(`添加资产：${row.name}`,()=>{
     if(curFx()[row.currency]==null) curFx()[row.currency]=1;
-    row.id=uid("a"); m.balance.push(row);
+    row.id=uid("a"); m.balance.push(row); m.opening.push(balanceSnapshotRow(row));
   });
   if(ok) $("assetDialog").hidden=true;
 });

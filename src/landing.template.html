@@ -43,7 +43,7 @@
   (function(){
     let last;
     try{
-      last=localStorage.getItem("assetory.active")||localStorage.getItem("familyLedger.active");
+      last=localStorage.getItem("assetory.active");
       if(last) localStorage.setItem("assetory.active",last);
     }catch(e){ return; }
     if(!last) return;

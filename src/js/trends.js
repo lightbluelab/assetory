@@ -12,16 +12,12 @@ function balanceTotals(balance,fxRates){
   });
   return {net,assets,liab};
 }
-// 首月没有真实上月快照时，反向重放流水构造期初。自动报价股票可用保存的上月底价格，
-// 其余资产按“无流水则估值不变”处理。
+// 期初是账本的显式数据，不再从期末反向猜测。快照只保存会变化的数值字段，
+// 展示和汇总所需的分组、币种等元数据从当月资产行合并。
 function openingBaseline(mKey){
   const m=ledger.months[mKey];
-  const balance=structuredClone(m?.balance||[]);
-  [...(m?.flows||[])].reverse().forEach(flow=>applyFlowToBalance(balance,flow,-1));
-  balance.forEach(row=>{
-    const price=m?.openingPrices?.[row.id]?.price;
-    if(row.cls==="stock"&&row.auto&&Number.isFinite(Number(price))&&Number(price)>0) row.price=Number(price);
-  });
+  const currentById=new Map((m?.balance||[]).map(row=>[row.id,row]));
+  const balance=(m?.opening||[]).map(open=>({...currentById.get(open.id),...open}));
   return {balance,fxRates:m?.fxRates||{CNY:1}};
 }
 // 逐资产扣除流水的直接影响：交易按成本/成交额，资产收益归入来源资产，剩余即价格、汇率或手工估值贡献。
@@ -52,7 +48,7 @@ function assetProfitAttribution(mKey,prevKey){
       addExpected(f.toAssetId,+value); addExpected(f.fromAssetId,-value);
       addExpectedNative(f.toAssetId,+flowAmount(f));
       addRealized(f.fromAssetId,Number(f.realizedPnlCNY||0));
-    }else if(f.kind==="dividend"){
+    }else if(f.kind==="assetIncome"){
       addExpected(f.toAssetId,+value); addExpectedNative(f.toAssetId,+flowAmount(f)); addAssetIncome(f.fromAssetId,value);
     }else if(f.kind==="transfer"){
       addExpected(f.fromAssetId,-value);
@@ -114,7 +110,6 @@ function profitAttribution(mKey,prevKey){
 
 // ================= 趋势区 =================
 let trendState={win:"all", from:null, to:null};
-let trendHiddenGroups=new Set(); // 被隐藏的分组名
 function trendMonthKeys(){
   const all=monthKeys();
   if(!all.length) return [];
@@ -131,28 +126,14 @@ function renderTrend(){
   if(keys.length<1){ $("trendSummary").innerHTML=`<div class="mut">暂无数据</div>`; $("trendCharts").innerHTML=""; return; }
   renderTrendSummary(keys);
   $("trendCharts").innerHTML = profitChart(keys) + stackedChart(keys);
-  // 还原勾选状态
-  $("trendCharts").querySelectorAll(".grp-toggle").forEach(cb=>{
-    cb.checked = !trendHiddenGroups.has(cb.dataset.grp);
-  });
 }
-// 事件委托: 分组切换 — 挂一次即可
-document.addEventListener("change", e=>{
-  if(e.target.classList.contains("grp-toggle")){
-    const g=e.target.dataset.grp;
-    e.target.checked ? trendHiddenGroups.delete(g) : trendHiddenGroups.add(g);
-    renderTrend();
-  }
-});
 // 趋势图悬停 tooltip
 document.addEventListener("mouseover", e=>{
   if(!e.target.classList) return;
   const isProfit=e.target.classList.contains("profit-hover-col");
-  const isStack=e.target.classList.contains("hover-col")||isProfit;
-  const isCash=e.target.classList.contains("cash-hover-col");
-  if(!isStack&&!isCash) return;
+  if(!isProfit) return;
   const i=Number(e.target.dataset.i);
-  const H=isProfit?window.__profitHover:(isStack?window.__stackHover:window.__cashHover); if(!H||!H.data[i]) return;
+  const H=window.__profitHover; if(!H||!H.data[i]) return;
   const d=H.data[i];
   const wrap=e.target.closest(".svg-wrap");
   const tip=wrap.querySelector(".chart-tip");
@@ -160,21 +141,12 @@ document.addEventListener("mouseover", e=>{
   // 竖线定位(用命中区中心)
   const cx=Number(e.target.getAttribute("x"))+Number(e.target.getAttribute("width"))/2;
   if(line){ line.setAttribute("x1",cx); line.setAttribute("x2",cx); line.style.display=""; }
-  let body;
-  if(isStack){
-    const stackNames=isProfit?H.names:H.gNames;
-    const absolute=!isProfit&&H.mode==="absolute";
-    const rows=stackNames.map((gn,gi)=>({gn,gi,value:absolute?(d.groups[gn]||0):(d.deltas[gn]||0)}))
-      .filter(r=>(isProfit||!trendHiddenGroups.has(r.gn)) && r.value!==0)
-      .sort((a,b)=>Math.abs(b.value)-Math.abs(a.value));
-    body=rows.map(r=>`<div class="tip-row"><span><i style="background:${isProfit?H.colorFor(r.gn,r.gi):H.palette[r.gi]}"></i>${escapeHTML(r.gn)}</span><b class="num ${r.value>0?"pos":"neg"}">${!absolute&&r.value>0?"+":""}${fmtTrend(r.value)}</b></div>`).join("");
-    if(!absolute) body+=`<div class="tip-row tip-net"><span>净资产变动</span><b class="num ${d.netDelta>0?"pos":d.netDelta<0?"neg":""}">${d.netDelta>0?"+":""}${fmtTrend(d.netDelta)}</b></div>`;
-  }else{
-    body=`<div class="tip-row"><span><i style="background:var(--green)"></i>流入</span><b class="num pos">${fmtTrend(d.inf)}</b></div>
-      <div class="tip-row"><span><i style="background:var(--red)"></i>流出</span><b class="num neg">${fmtTrend(d.outf)}</b></div>
-      <div class="tip-row tip-net"><span>净现金流</span><b class="num ${d.net<0?"neg":"pos"}">${d.net>=0?"+":""}${fmtTrend(d.net)}</b></div>`;
-  }
-  tip.innerHTML=`<div class="tip-title">${escapeHTML(isStack?d.m+(isProfit?" · 盈亏归因":H.mode==="absolute"?" · 期末规模":" · 本月变动"):d.m)}</div>${body}`;
+  const rows=H.names.map((name,index)=>({name,index,value:d.deltas[name]||0}))
+    .filter(row=>row.value!==0)
+    .sort((a,b)=>Math.abs(b.value)-Math.abs(a.value));
+  let body=rows.map(row=>`<div class="tip-row"><span><i style="background:${H.colorFor(row.name,row.index)}"></i>${escapeHTML(row.name)}</span><b class="num ${row.value>0?"pos":"neg"}">${row.value>0?"+":""}${fmtTrend(row.value)}</b></div>`).join("");
+  body+=`<div class="tip-row tip-net"><span>净资产变动</span><b class="num ${d.netDelta>0?"pos":d.netDelta<0?"neg":""}">${d.netDelta>0?"+":""}${fmtTrend(d.netDelta)}</b></div>`;
+  tip.innerHTML=`<div class="tip-title">${escapeHTML(d.m)} · 盈亏归因</div>${body}`;
   tip.style.display="block";
   // 定位: 靠近鼠标, 右侧优先, 越界翻到左侧
   const wr=wrap.getBoundingClientRect();
@@ -185,18 +157,21 @@ document.addEventListener("mouseover", e=>{
 });
 function getVbW(wrap){ const svg=wrap.querySelector("svg"); const vb=svg&&svg.getAttribute("viewBox"); return vb?Number(vb.split(" ")[2]):wrap.clientWidth; }
 document.addEventListener("mouseout", e=>{
-  if(!e.target.classList||(!e.target.classList.contains("hover-col")&&!e.target.classList.contains("profit-hover-col")&&!e.target.classList.contains("cash-hover-col"))) return;
+  if(!e.target.classList?.contains("profit-hover-col")) return;
   const wrap=e.target.closest(".svg-wrap"); if(!wrap) return;
   const tip=wrap.querySelector(".chart-tip"); const line=wrap.querySelector(".hover-line");
   if(tip) tip.style.display="none"; if(line) line.style.display="none";
 });
 
+function periodOpeningTotals(firstKey){
+  const allKeys=monthKeys(), firstIdx=allKeys.indexOf(firstKey);
+  if(firstIdx>0) return monthTotals(allKeys[firstIdx-1]);
+  const opening=openingBaseline(firstKey);
+  return balanceTotals(opening.balance,opening.fxRates);
+}
 function renderTrendSummary(keys){
-  const allKeys=monthKeys();
-  // base = 窗口首月的前一个已有月份(体现"期初")；无前月则退回首月自身
-  const firstIdx=allKeys.indexOf(keys[0]);
-  const baseKey = firstIdx>0 ? allKeys[firstIdx-1] : keys[0];
-  const base=monthTotals(baseKey), last=monthTotals(keys[keys.length-1]);
+  // 窗口从账本首月开始时，直接使用显式期初快照。
+  const base=periodOpeningTotals(keys[0]), last=monthTotals(keys[keys.length-1]);
   // 窗口内现金流合计
   let inflow=0, outflow=0;
   keys.forEach(k=>{ const totals=cashFlowTotals(k); inflow+=totals.inflow; outflow+=totals.outflow; });
@@ -254,16 +229,17 @@ function stackedChart(keys){
   });
   data.forEach(d=>{
     d.deltas={};
-    gNames.forEach(gn=>d.deltas[gn]=d.isBaseline?0:(d.groups[gn]||0)-(d.prevGroups[gn]||0));
+    const baselineGroups=d.isBaseline?balanceGroupTotals(openingBaseline(d.m).balance,d.m):d.prevGroups;
+    gNames.forEach(gn=>d.deltas[gn]=(d.groups[gn]||0)-(baselineGroups[gn]||0));
   });
   const changeCell=value=>{
     const tone=value>0?"pos":value<0?"neg":"zero";
     return `<span class="amount change-cell ${tone}">${value>0?"+":""}${fmtTrend(value)}</span>`;
   };
   const rows=data.map(d=>`<tr><td class="num">${d.m}</td>${gNames.map(gn=>`<td>${changeCell(d.deltas[gn])}</td>`).join("")}</tr>`).join("");
-  const openingGroups=data[0].isBaseline ? data[0].groups : data[0].prevGroups;
-  const openingKey=data[0].isBaseline ? keys[0] : allKeys[allKeys.indexOf(keys[0])-1];
-  const openingMonthTotals=monthTotals(openingKey), openingAssets=openingMonthTotals.assets, openingLiabs=Math.abs(openingMonthTotals.liab);
+  const firstOpening=data[0].isBaseline?openingBaseline(keys[0]):null;
+  const openingGroups=data[0].isBaseline ? balanceGroupTotals(firstOpening.balance,keys[0]) : data[0].prevGroups;
+  const openingMonthTotals=periodOpeningTotals(keys[0]), openingAssets=openingMonthTotals.assets, openingLiabs=Math.abs(openingMonthTotals.liab);
   const openingTotals=gNames.map(gn=>{
     const value=openingGroups[gn]||0;
     const denominator=value<0?openingLiabs:openingAssets;

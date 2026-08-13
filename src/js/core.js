@@ -21,19 +21,18 @@ const ASSET_CLASSES = {
 // side 值: 'cash'|'holding'(股票+基金+固定资产)|'asset'(全部非负债资产)|'liability'|'free'
 const FLOW_TYPES = {
   income:   { name:"收入", from:"free",      to:"asset",     needQtyPrice:false, subcat:true, newAsset:true, toLabel:"流入资产" },
-  // 保持 dividend 作为 JSON 内部标识，避免已保存账本失去兼容性。
-  dividend: { name:"资产收益", from:"asset",   to:"cash",     needQtyPrice:false, newHolding:false, assetIncome:true, fromLabel:"收益来源（已有资产）", toLabel:"到账账户" },
+  assetIncome: { name:"资产收益", from:"asset",   to:"cash",     needQtyPrice:false, newHolding:false, assetIncome:true, fromLabel:"收益来源（已有资产）", toLabel:"到账账户" },
   expense:  { name:"支出", from:"cash",      to:"free",      needQtyPrice:false, subcat:true  },
   transfer: { name:"转账", from:"cash",      to:"cash",      needQtyPrice:false },
   buy:      { name:"买入", from:"cash",      to:"holding",   needQtyPrice:true, newHolding:true  },
   sell:     { name:"卖出", from:"holding",   to:"cash",      needQtyPrice:true, newHolding:true },
   repay:    { name:"还款", from:"cash",      to:"liability", needQtyPrice:false },
   // 仅由资产盘点自动生成，不提供给普通流水录入。amount 可正可负。
-  valuation:{ name:"手工估值调整", from:"free", to:"asset", needQtyPrice:false, internal:true },
+  valuation:{ name:"手工估值调整", from:"free", to:"balance", needQtyPrice:false, internal:true },
 };
 const HAS_FS = ("showOpenFilePicker" in window && "showDirectoryPicker" in window);
 const IDB_DB = "assetoryDB", IDB_STORE = "handles";
-const LEGACY_IDB_DB = "familyLedgerDB";
+
 
 // ---------- 运行时状态 ----------
 let ledger = null;          // 当前账本对象
@@ -45,6 +44,7 @@ let balanceEditMode = false;// 资产表编辑状态跨重新渲染保留，切�
 let flowEditMode = false;   // 流水表编辑状态跨重新渲染保留，切换月份时重置
 let encryptionKey = null;   // 仅保留在当前浏览器内存中的 AES 密钥
 let encryptionMeta = null;
+let fallbackDirty = false;  // 无文件写回能力时，记录尚未下载备份的内存修改
 // 已知账本注册表: name -> fileHandle。会话内内存 + IndexedDB 持久化(句柄可跨刷新恢复)
 const registry = {};
 
@@ -63,112 +63,129 @@ function isValidDateKey(value,monthKey){
   const parsed=new Date(`${text}T00:00:00Z`);
   return Number.isFinite(parsed.getTime())&&parsed.toISOString().slice(0,10)===text;
 }
-function assertLedgerShape(data){
-  if(!data||typeof data!=="object"||Array.isArray(data)||!data.months||typeof data.months!=="object"||Array.isArray(data.months)) throw new Error("不是有效的资产追踪 JSON");
+function hasOwn(object,key){ return Object.prototype.hasOwnProperty.call(object,key); }
+function requireFields(object,fields,label){
+  fields.forEach(field=>{ if(!hasOwn(object,field)||object[field]==null) throw new Error(`${label} 缺少必填字段 ${field}`); });
+}
+function normalizeText(value){ return typeof value==="string"?value.trim():value; }
+function normalizeLedger(data){
+  const out=structuredClone(data);
+  if(hasOwn(out,"name")) out.name=normalizeText(out.name);
+  if(hasOwn(out,"createdAt")) out.createdAt=normalizeText(out.createdAt);
+  Object.values(out.months||{}).forEach(month=>{
+    if(!month||typeof month!=="object"||Array.isArray(month)) return;
+    if(month.copiedFrom!=null) month.copiedFrom=normalizeText(month.copiedFrom);
+    ["createdAt","updatedAt"].forEach(field=>{ if(hasOwn(month,field)) month[field]=normalizeText(month[field]); });
+    ["revision","sourceRevision"].forEach(field=>{ if(hasOwn(month,field)) month[field]=Number(month[field]); });
+    Object.entries(month.fxRates||{}).forEach(([currency,rate])=>{ if(!currency.startsWith("_")) month.fxRates[currency]=Number(rate); });
+    [...(Array.isArray(month.opening)?month.opening:[]),...(Array.isArray(month.balance)?month.balance:[])].forEach(row=>{
+      ["id","cls","name","group","account","currency","market","symbol","priceStatus","priceAt","manualPriceAt"].forEach(field=>{ if(row[field]!=null) row[field]=normalizeText(row[field]); });
+      ["qty","price","value","costBasisCNY"].forEach(field=>{ if(row[field]!=null) row[field]=Number(row[field]); });
+    });
+    (Array.isArray(month.flows)?month.flows:[]).forEach(flow=>{
+      ["id","kind","date","fromAssetId","toAssetId","fromText","toText","note","subcat","currency","toCurrency","holdingCurrency"].forEach(field=>{ if(flow[field]!=null) flow[field]=normalizeText(flow[field]); });
+      ["amount","qty","price","toAmount","holdingAmount","fxRate","costAddedCNY","costReductionCNY","realizedPnlCNY"].forEach(field=>{ if(flow[field]!=null) flow[field]=Number(flow[field]); });
+    });
+    if(Array.isArray(month.changeLog)) month.changeLog=month.changeLog.map(entry=>{
+      if(!entry||typeof entry!=="object"||Array.isArray(entry)) return entry;
+      const normalized={...entry};
+      if(hasOwn(entry,"revision")) normalized.revision=Number(entry.revision);
+      ["at","label"].forEach(field=>{ if(hasOwn(entry,field)) normalized[field]=normalizeText(entry[field]); });
+      if(Array.isArray(entry.details)) normalized.details=entry.details.map(item=>normalizeText(item));
+      return normalized;
+    });
+  });
+  return out;
+}
+function endpointMatches(side,row){
+  if(side==="cash") return row.cls==="cash";
+  if(side==="holding") return ["stock","fund","fixed"].includes(row.cls);
+  if(side==="asset") return row.cls!=="liability";
+  if(side==="liability") return row.cls==="liability";
+  if(side==="balance") return true;
+  return false;
+}
+function validateLedger(data){
+  if(!data||typeof data!=="object"||Array.isArray(data)) throw new Error("不是有效的资产追踪 JSON");
+  if(data.schema!=="assetory-ledger-v1") throw new Error("账本版本不受支持；请使用最新版 Assetory 创建账本");
+  requireFields(data,["name","createdAt","months"],"账本");
+  if(typeof data.months!=="object"||Array.isArray(data.months)) throw new Error("账本月份格式无效");
+  if(!data.name||!data.createdAt) throw new Error("账本名称或创建时间无效");
+  const childByParent=new Map();
   for(const [key,month] of Object.entries(data.months)){
     if(!isValidMonthKey(key)||!month||typeof month!=="object"||Array.isArray(month)) throw new Error(`月份 ${key||"(空)"} 格式无效`);
-    if(month.balance!=null&&!Array.isArray(month.balance)) throw new Error(`${key} 的资产列表格式无效`);
-    if(month.flows!=null&&!Array.isArray(month.flows)) throw new Error(`${key} 的流水列表格式无效`);
-    if(month.opening!=null&&!Array.isArray(month.opening)) throw new Error(`${key} 的期初快照格式无效`);
-    if(month.fxRates!=null&&(!month.fxRates||typeof month.fxRates!=="object"||Array.isArray(month.fxRates))) throw new Error(`${key} 的汇率表格式无效`);
-    if(month.openingPrices!=null&&(!month.openingPrices||typeof month.openingPrices!=="object"||Array.isArray(month.openingPrices))) throw new Error(`${key} 的期初价格基线格式无效`);
-  }
-}
-function migrateLedger(data){
-  assertLedgerShape(data);
-  data.name=textValue(data.name||"未命名资产追踪",80);
-  // 旧版本的周期规则不再维护；其已生成流水会保留为普通历史流水。
-  delete data.recurringFlows;
-  Object.entries(data.months).forEach(([key,month])=>{
-    month.balance=Array.isArray(month.balance)?month.balance:[];
-    month.flows=Array.isArray(month.flows)?month.flows:[];
-    if(month.copiedFrom!=null){
-      const copiedFrom=textValue(month.copiedFrom,20);
-      if(copiedFrom) month.copiedFrom=copiedFrom; else delete month.copiedFrom;
-    }
-    month.fxRates=month.fxRates&&typeof month.fxRates==="object"?month.fxRates:{CNY:1};
-    if(month.fxRates.CNY==null) month.fxRates.CNY=1;
-    Object.entries(month.fxRates).forEach(([currency,rate])=>{
-      if(currency.startsWith("_")) return;
-      if(!Number.isFinite(Number(rate))||Number(rate)<=0) throw new Error(`${key} 的 ${textValue(currency,12)} 汇率无效`);
-      month.fxRates[currency]=Number(rate);
-    });
+    requireFields(month,["opening","balance","flows","fxRates","createdAt","updatedAt","revision","sourceRevision","changeLog"],key);
+    if(!Array.isArray(month.opening)||!Array.isArray(month.balance)||!Array.isArray(month.flows)||!Array.isArray(month.changeLog)) throw new Error(`${key} 的列表字段格式无效`);
+    if(!month.fxRates||typeof month.fxRates!=="object"||Array.isArray(month.fxRates)) throw new Error(`${key} 的汇率表格式无效`);
+    if(!Number.isFinite(month.revision)||!Number.isFinite(month.sourceRevision)) throw new Error(`${key} 的版本字段无效`);
+    if(!month.createdAt||!month.updatedAt) throw new Error(`${key} 的时间字段无效`);
+    Object.entries(month.fxRates).forEach(([currency,rate])=>{ if(!currency.startsWith("_")&&(!Number.isFinite(rate)||rate<=0)) throw new Error(`${key} 的 ${currency} 汇率无效`); });
+    if(month.fxRates.CNY!==1) throw new Error(`${key} 的人民币汇率必须为 1`);
     const ids=new Set();
     month.balance.forEach(row=>{
-      if(!row||typeof row!=="object") throw new Error("资产条目格式无效");
-      if(!ASSET_CLASSES[row.cls]) throw new Error(`未知资产类型：${textValue(row.cls,30)}`);
-      row.id=textValue(row.id,100);
-      if(!row.id) row.id=uid("a");
-      if(ids.has(row.id)) throw new Error(`${key} 存在重复资产 ID：${row.id}`);
+      if(!row||typeof row!=="object"||Array.isArray(row)) throw new Error(`${key} 的资产条目格式无效`);
+      requireFields(row,["id","cls","group","name","account","currency"],`${key} 的资产`);
+      if(!row.id||ids.has(row.id)) throw new Error(`${key} 存在空白或重复资产 ID：${row.id||"(空)"}`);
       ids.add(row.id);
-      ["name","group","account","currency","market","symbol"].forEach(key=>{ if(row[key]!=null) row[key]=textValue(row[key]); });
-      ["qty","price","value","costBasisCNY"].forEach(field=>{
-        if(row[field]==null) return;
-        if(!Number.isFinite(Number(row[field]))) throw new Error(`${key} 的资产「${row.name||row.id}」存在无效${field}`);
-        row[field]=Number(row[field]);
-      });
-      if(row.costBasisCNY==null && row.cls!=="cash" && row.cls!=="liability") {
-        const rate=Number(month.fxRates[row.currency||"CNY"]||1);
-        row.costBasisCNY=Math.abs((row.cls==="stock"?Number(row.qty||0)*Number(row.price||0):Number(row.value||0))*rate);
-      }
+      if(!ASSET_CLASSES[row.cls]) throw new Error(`${key} 存在未知资产类型：${row.cls}`);
+      requireFields(row,row.cls==="stock"?["qty","price"]:["value"],`${key} 的资产「${row.name||row.id}」`);
+      if(!["cash","liability"].includes(row.cls)) requireFields(row,["costBasisCNY"],`${key} 的资产「${row.name||row.id}」`);
+      ["qty","price","value","costBasisCNY"].forEach(field=>{ if(row[field]!=null&&!Number.isFinite(row[field])) throw new Error(`${key} 的资产「${row.name||row.id}」存在无效 ${field}`); });
     });
-    if(month.openingPrices){
-      const prices={};
-      Object.entries(month.openingPrices).forEach(([id,entry])=>{
-        const assetId=textValue(id,100), price=Number(entry?.price);
-        if(!assetId||!ids.has(assetId)||!Number.isFinite(price)||price<=0) return;
-        prices[assetId]={price,date:textValue(entry.date||"",20),src:textValue(entry.src||"",40)};
-      });
-      if(Object.keys(prices).length) month.openingPrices=prices;
-      else delete month.openingPrices;
-    }
+    const openingIds=new Set();
+    month.opening.forEach(row=>{
+      if(!row||typeof row!=="object"||Array.isArray(row)) throw new Error(`${key} 的期初快照条目格式无效`);
+      requireFields(row,["id","cls","name"],`${key} 的期初快照`);
+      if(!row.id||openingIds.has(row.id)) throw new Error(`${key} 存在空白或重复的期初快照 ID：${row.id||"(空)"}`);
+      openingIds.add(row.id);
+      if(!ASSET_CLASSES[row.cls]) throw new Error(`${key} 的期初快照存在未知资产类型：${row.cls}`);
+      const balanceRow=month.balance.find(asset=>asset.id===row.id);
+      if(!balanceRow) throw new Error(`${key} 的期初快照引用了不存在的资产 ID：${row.id}`);
+      if(balanceRow.cls!==row.cls) throw new Error(`${key} 的期初快照资产类型与期末资产不一致：${row.id}`);
+      requireFields(row,row.cls==="stock"?["qty","price"]:["value"],`${key} 的期初快照「${row.name||row.id}」`);
+      ["qty","price","value"].forEach(field=>{ if(row[field]!=null&&!Number.isFinite(row[field])) throw new Error(`${key} 的期初快照存在无效 ${field}`); });
+    });
     const flowIds=new Set();
     month.flows.forEach(flow=>{
-      if(!flow||typeof flow!=="object"||!FLOW_TYPES[flow.kind]) throw new Error("存在未知或损坏的流水类型");
-      flow.id=textValue(flow.id,100);
-      if(!flow.id) flow.id=uid("f");
-      if(flowIds.has(flow.id)) throw new Error(`${key} 存在重复流水 ID：${flow.id}`);
-      flowIds.add(flow.id);
-      if(!isValidDateKey(flow.date,key)) throw new Error(`${key} 存在无效或不属于本月的流水日期`);
-      ["from","to"].forEach(side=>{
-        const idKey=`${side}AssetId`, idxKey=`${side}Idx`;
-        if(flow[idKey]!=null) flow[idKey]=textValue(flow[idKey],100);
-        if(!flow[idKey]&&Number.isInteger(flow[idxKey])){
-          if(!month.balance[flow[idxKey]]) throw new Error(`${key} 的流水引用了不存在的资产`);
-          flow[idKey]=month.balance[flow[idxKey]].id;
-        }
-        delete flow[idxKey];
-      });
-      ["fromText","toText","note","subcat","currency","toCurrency","holdingCurrency"].forEach(key=>{ if(flow[key]!=null) flow[key]=textValue(flow[key]); });
-      delete flow.recurringId;
-    });
-    const validIds=new Set(month.balance.map(row=>row.id));
-    month.flows.forEach(flow=>{
+      if(!flow||typeof flow!=="object"||Array.isArray(flow)) throw new Error(`${key} 的流水格式无效`);
+      requireFields(flow,["id","kind","date","amount","currency"],`${key} 的流水`);
       const type=FLOW_TYPES[flow.kind];
+      if(!type) throw new Error(`${key} 存在未知流水类型：${flow.kind}`);
+      if(!flow.id||flowIds.has(flow.id)) throw new Error(`${key} 存在空白或重复流水 ID：${flow.id||"(空)"}`);
+      flowIds.add(flow.id);
+      if(!isValidDateKey(flow.date,key)||!Number.isFinite(flow.amount)) throw new Error(`${key} 存在无效流水日期或金额`);
       ["from","to"].forEach(side=>{
-        if(type[side]!=="free" && (!flow[`${side}AssetId`]||!validIds.has(flow[`${side}AssetId`])))
-          throw new Error(`${key} 的${type.name}流水引用了不存在的${side==="from"?"来源":"去向"}资产`);
+        if(type[side]==="free") return;
+        const assetId=flow[`${side}AssetId`], row=ids.has(assetId)?month.balance.find(asset=>asset.id===assetId):null;
+        if(!row) throw new Error(`${key} 的${type.name}流水引用了不存在的${side==="from"?"来源":"去向"}资产`);
+        if(!endpointMatches(type[side],row)) throw new Error(`${key} 的${type.name}流水${side==="from"?"来源":"去向"}资产类别无效`);
       });
-      ["amount","qty","price","toAmount","holdingAmount","fxRate","costAddedCNY","costReductionCNY","realizedPnlCNY"].forEach(field=>{
-        if(flow[field]!=null&&!Number.isFinite(Number(flow[field]))) throw new Error(`${key} 存在无效流水金额`);
-        if(flow[field]!=null) flow[field]=Number(flow[field]);
-      });
-      // 历史账本曾允许收入等流水引用非标准类别。导入时只校验 ID 存在，
-      // 不追溯性改变其现金流、余额或成本口径；新流水由录入界面实施类别约束。
-      if(flow.nonCashIncome!=null) flow.nonCashIncome=flow.nonCashIncome===true;
-      if(flow.incomeAssetMode!=null) flow.incomeAssetMode=textValue(flow.incomeAssetMode,20);
+      ["qty","price","toAmount","holdingAmount","fxRate","costAddedCNY","costReductionCNY","realizedPnlCNY"].forEach(field=>{ if(flow[field]!=null&&!Number.isFinite(flow[field])) throw new Error(`${key} 存在无效流水数值 ${field}`); });
+      if(flow.kind==="income"){
+        if(typeof flow.nonCashIncome!=="boolean") throw new Error(`${key} 的收入流水缺少现金流模式`);
+        if(!["quantity","value"].includes(flow.incomeAssetMode)) throw new Error(`${key} 的收入流水缺少资产计量模式`);
+      }
     });
-  });
-  const childByParent=new Map();
-  Object.entries(data.months).forEach(([key,month])=>{
-    if(!month.copiedFrom) return;
-    const parentKey=month.copiedFrom;
-    if(!isValidMonthKey(parentKey)||!data.months[parentKey]||parentKey>=key) throw new Error(`${key} 的继承来源 ${parentKey} 无效`);
-    if(childByParent.has(parentKey)) throw new Error(`${parentKey} 同时被多个后续月份继承，月份链存在分叉`);
-    childByParent.set(parentKey,key);
-  });
-  ensureMonthMetadata(data);
+    month.changeLog.forEach(entry=>{
+      if(!entry||typeof entry!=="object"||Array.isArray(entry)) throw new Error(`${key} 的变更日志格式无效`);
+      requireFields(entry,["revision","at","label","details"],`${key} 的变更日志`);
+      if(!Number.isFinite(entry.revision)||!Array.isArray(entry.details)) throw new Error(`${key} 的变更日志字段无效`);
+    });
+    if(month.copiedFrom!=null){
+      const parentKey=month.copiedFrom;
+      if(!isValidMonthKey(parentKey)||!data.months[parentKey]||parentKey>=key) throw new Error(`${key} 的继承来源 ${parentKey} 无效`);
+      if(childByParent.has(parentKey)) throw new Error(`${parentKey} 同时被多个后续月份继承，月份链存在分叉`);
+      childByParent.set(parentKey,key);
+      const known=new Set([...data.months[parentKey].balance.map(row=>row.id),...month.balance.map(row=>row.id)]);
+      month.opening.forEach(row=>{ if(!known.has(row.id)) throw new Error(`${key} 的期初快照引用了未知资产 ID：${row.id}`); });
+    }
+  }
   return data;
+}
+function loadLedger(data){
+  const normalized=normalizeLedger(data);
+  validateLedger(normalized);
+  return normalized;
 }
 function assetByFlow(month,flow,side){
   const id=flow?.[`${side}AssetId`];
@@ -177,7 +194,6 @@ function assetByFlow(month,flow,side){
 function setFlowAsset(flow,side,asset){
   if(asset?.id) flow[`${side}AssetId`]=asset.id;
   else delete flow[`${side}AssetId`];
-  delete flow[`${side}Idx`];
 }
 function flowChangeSummary(flow,month,prefix){
   const type=FLOW_TYPES[flow?.kind]?.name||flow?.kind||"流水";
@@ -268,13 +284,7 @@ async function transact(label,mutator,{touch=true,render=true}={}){
 }
 function fmtFull(n){
   if(n==null||isNaN(n)) return "-";
-  n=Number(n);
-  const neg=n<0, a=Math.abs(n);
-  let s;
-  if(a>=100) s=Math.round(a).toLocaleString("zh-CN");
-  else if(a>=10) s=a.toFixed(1);
-  else s=a.toFixed(2);
-  return (neg?"-":"")+s;
+  return Number(n).toLocaleString("zh-CN",{minimumFractionDigits:0,maximumFractionDigits:4});
 }
 function fmtCompact(n){
   if(n==null||isNaN(n)) return "-";
@@ -311,7 +321,7 @@ function fmtPrice(n){
   return Number(n).toLocaleString("zh-CN",{minimumFractionDigits:2,maximumFractionDigits:4});
 }
 function moneyCell(n,currency,formatter=fmtMoney){
-  return `<span class="money"><span>${formatter(n)}</span>${currency?`<span class="currency-code">${currency}</span>`:""}</span>`;
+  return `<span class="money"><span>${formatter(n)}</span>${currency?`<span class="currency-code">${escapeHTML(currency)}</span>`:""}</span>`;
 }
 function setStatus(s){ document.getElementById("status").textContent = s; }
 function $(id){ return document.getElementById(id); }
@@ -378,29 +388,18 @@ function refreshAssetSuggestions(){
   render("assetGroupList",groups); render("assetAccountList",accounts);
 }
 
+function balanceSnapshotRow(row){
+  return {id:row.id,cls:row.cls,name:row.name,qty:row.qty,value:row.value,price:row.price};
+}
 function newLedger(name){
   return {
-    schema:"family-ledger-v2", name, createdAt:new Date().toISOString(),
+    schema:"assetory-ledger-v1", name, createdAt:new Date().toISOString(),
     months:{}   // 汇率下沉到每个月(与时间相关)
   };
 }
 function newMonth(){
   const now=new Date().toISOString();
-  return { balance:[], flows:[], fxRates:{CNY:1}, createdAt:now, updatedAt:now, revision:0, sourceRevision:0, changeLog:[] };
-}
-function ensureMonthMetadata(data){
-  const now=new Date().toISOString();
-  Object.values(data?.months||{}).forEach(m=>{
-    if(!m.createdAt) m.createdAt=now;
-    if(!m.updatedAt) m.updatedAt=m.createdAt;
-    if(m.copiedFrom&&!m.sourceUpdatedAt) m.sourceUpdatedAt=m.createdAt;
-    if(!Number.isFinite(Number(m.revision))) m.revision=0;
-    if(!Number.isFinite(Number(m.sourceRevision))) m.sourceRevision=0;
-    m.changeLog=Array.isArray(m.changeLog)?m.changeLog.filter(entry=>entry&&Number.isFinite(Number(entry.revision))).slice(-80).map(entry=>({
-      revision:Number(entry.revision),at:textValue(entry.at||m.updatedAt,40),label:textValue(entry.label||"更新月度数据",120),
-      details:Array.isArray(entry.details)?entry.details.map(item=>textValue(item,240)).filter(Boolean).slice(0,20):[]
-    })):[];
-  });
+  return { opening:[], balance:[], flows:[], fxRates:{CNY:1}, createdAt:now, updatedAt:now, revision:0, sourceRevision:0, changeLog:[] };
 }
 /* 资产条目 balance row 结构:
    { id, cls:'stock'|'cash'|'liability'|'fixed', group, name, account,
@@ -443,9 +442,12 @@ function previousMonthKey(mKey){
   const d=new Date(year,month-2,1);
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
 }
+function previousAvailableMonthKey(mKey){
+  return monthKeys().filter(key=>key<mKey).pop()||null;
+}
 function cashFlowTotals(mKey){
   const m=ledger.months[mKey];
-  const detail={income:0,nonCashIncome:0,dividend:0,expense:0,buy:0,sell:0,repay:0,transfer:0};
+  const detail={income:0,nonCashIncome:0,assetIncome:0,expense:0,buy:0,sell:0,repay:0,transfer:0};
   let inflow=0, outflow=0;
   (m?.flows||[]).forEach(f=>{
     const amount=flowAmount(f)*fxRate(f.currency||"CNY",mKey);
@@ -455,7 +457,7 @@ function cashFlowTotals(mKey){
     }else{
       detail[f.kind]=(detail[f.kind]||0)+amount;
     }
-    if(f.kind==="dividend") inflow+=amount;
+    if(f.kind==="assetIncome") inflow+=amount;
     else if(f.kind==="expense"||f.kind==="repay") outflow+=amount;
     else if(f.kind==="buy"){ if(amount>=0) outflow+=amount; else inflow-=amount; }
     else if(f.kind==="sell"){ if(amount>=0) inflow+=amount; else outflow-=amount; }
@@ -463,9 +465,12 @@ function cashFlowTotals(mKey){
   return {inflow,outflow,net:inflow-outflow,detail};
 }
 // 某月按分组的人民币金额(用于堆叠图)
-function monthGroupTotals(mKey){
-  const m=ledger.months[mKey]; const g={};
-  if(m) m.balance.forEach(r=>{ const k=r.group||"未分组"; g[k]=(g[k]||0)+rowCNY(r,mKey); });
+function balanceGroupTotals(balance,mKey){
+  const g={};
+  (balance||[]).forEach(row=>{ const group=row.group||"未分组"; g[group]=(g[group]||0)+rowCNY(row,mKey); });
   return g;
+}
+function monthGroupTotals(mKey){
+  return balanceGroupTotals(ledger.months[mKey]?.balance,mKey);
 }
 function flowCNY(f,mKey){ return flowAmount(f)*fxRate(f.currency||"CNY",mKey); }

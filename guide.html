@@ -14,59 +14,28 @@
 <header class="guide-header"><div><a class="brand" href="./index.html"><img src="./assets/images/assetory.svg" alt="" />ASSETORY</a><a class="back" href="./index.html">返回介绍页</a></div></header>
 <main><article><h1>Assetory</h1>
 <p><strong>Assets, Liabilities &amp; Net Worth</strong></p>
-<p><em>Your complete financial story.</em></p>
-<h2>1. 简介</h2>
-<p>Assetory 是用于持续追踪个人或家庭资产价值的小工具。它把散落在不同银行、券商等平台的资产放进同一份月度视图中，帮你看清资产是如何分布和变化的。</p>
-<p>可直接通过 <a href="https://lightbluelab.github.io/assetory/">https://lightbluelab.github.io/assetory/</a> 在线访问和使用。本工具采用本地优先方式，账本数据只保留在你的浏览器或由你自行导入、导出的 JSON 文件中，不会上传到 GitHub Pages 或本项目仓库。</p>
-<p>主要能力包括：</p>
-<ul><li>按月维护资产负债表和流水对账单，自动汇总资产规模、盈亏和现金流趋势。</li><li>支持多个账户、资产分组、多币种及汇率换算，适合同时管理境内外资产。</li><li>自动更新股票期末价格和汇率变化，并支持手动修正。</li><li>记录收入、支出、转账、买入、卖出、还款，以及分红、利息、租金等资产收益。</li><li>提供历史月份同步、对账提示、备份和可选密码保护，方便长期维护</li></ul>
-<h2>2. 设计与运行原理</h2>
-<p>本工具由 <strong>LightBlue 设计</strong>，由 <strong>OpenAI Codex 实现</strong>。它采用本地优先的方式：每本账本是一份独立 JSON 文件，界面负责计算和展示，账本数据由用户自己掌控。</p>
-<h3>月度快照与同步</h3>
-<p>每个月保存月末资产清单 <code>balance</code>、本月流水 <code>flows</code>、汇率、期初快照和同步信息。新建月份时，系统从最近前月继承资产和汇率信息，但不会复制流水。</p>
-<p>修改历史月份后，使用“同步到下月”或“同步到后续所有月份”重建后续月份的期初和受影响的数量、余额；后续月份已经维护的手工价格和自动报价状态会保留。资产和流水都以资产ID 关联，因此重命名、删除与同步能保持对应关系</p>
-<h3>盈亏计算</h3>
-<p>净资产的月度变化由收入、支出、资产收益、交易，以及资产和负债的价格与汇率变化共同构成。盈亏分析会分别归因：</p>
-<ul><li>收入、支出和资产收益按实际去向联动；股票或实物激励等非现金收入增加资产与净资产，但不计入净现金流。</li><li>买入和卖出会调整持仓数量、现金及成本基础；股票卖出可穿过零仓建立空头，回补、加仓和反向开仓的已实现盈亏均按对应成本计算。</li><li>月度归因与净资产变化统一以上一个实际月份的期末为起点；首月没有真实上月时，会从期末反向扣除本月流水构造期初。自动报价股票可记录上月底价格作为首月估值基线；其余没有流水的资产默认估值不变。期初快照仅用于同步和对账。现金盈亏会进一步区分汇率影响、资产收益与手工余额调整。</li><li>仍在持有的资产按期末价格和汇率相对成本或上期的变化计算估值与汇兑影响。</li><li>负债的变化反向影响净资产；转账只改变账户位置，不改变净资产。</li></ul>
-<p>因此，趋势图既能看资产规模，也能用于解释净资产变化来自哪一类资产或事件。</p>
-<h2>3. 操作指南</h2>
-<h3>创建或打开账本</h3>
-<ol><li>点击右上角“账本管理”。</li><li>选择“新建”，输入账本名称并选择本地目录；也可以“打开 JSON”导入既有账本。</li><li>HTTPS 网页首次打开且没有真实账本时，会加载 <code>assetory-demo-ledger.json</code> 供体验；直接双击本地 HTML 时，浏览器不会自动读取演示文件。</li><li>编辑后通过“备份”下载一份最新 JSON。请定期保留备份，尤其在删除资产、删除月份或批量同步前。</li></ol>
-<h3>维护月度资产与流水</h3>
-<ol><li>添加月份。新月份继承最近前月的资产和汇率，但不复制流水。</li><li>在资产负债表点击“编辑”，通过资产详情维护分组、账户、自动报价配置、价格或估值。现金、负债和固定资产可直接做月度盘点或快速调整余额；系统会自动记一条“手工估值调整”流水，并在盈亏趋势中归入“其它贡献”，因此不会破坏流水解释或后续月份同步。基金、股票等投资资产仍可按价格/估值维护。</li><li>新增资产或流水建仓时，分组与账户会推荐历史值，也可以直接输入自定义值。</li><li>对自动更新的股票使用“更新股价和汇率”；警告标识表示需要在资产详情中手动调整价格。</li><li>收入可流入现金、股票、基金、固定资产或新建资产；流入股票时填写数量和价格。支出影响指定现金账户；转账不改变净资产；资产收益用于记录分红、利息和租金；买入、卖出与还款会联动现金、持仓或负债。流水金额和交易数量必须为正数；股票卖出可从零持仓或多头持仓建立空头，基金和固定资产不可超卖，还款不可超过负债余额。跨币种还款请先通过转账完成换汇。</li><li>金额字段支持 <code>1000+200*3</code>、<code>(1200-50)/2</code>、<code>×</code>、<code>÷</code> 等简单表达式。</li><li>修改历史月份后，根据“后续月份待同步”提示执行同步。</li></ol>
-<h3>密码保护</h3>
-<p>在账本管理中可为账本设置密码。启用后，账本 JSON 会使用浏览器本地 AES-GCM 加密，密码和密钥不会写入 JSON。打开加密账本时需要输入对应账本的密码；修改密码时留空并确认，可取消密码保护并恢复明文 JSON。请自行妥善保管密码，遗失后无法恢复账本内容。</p>
-<h3>手机使用</h3>
-<p>当前仅提供网页/PWA 版。手机可通过浏览器打开或“添加到主屏幕”查看账本；编辑后请使用“备份”下载更新后的 JSON。iPhone Safari、Chrome 和 PWA 都不能自动回写从“文件”应用选择的 iCloud JSON。Android 建议以查看为主，修改后下载备份，或在电脑上维护后再通过手机打开。</p>
-<h3>未来如需手机自动读写文件</h3>
-<p>当前版本未实现以下方案，仅作为后续扩展记录：</p>
-<ol><li>原生 App：使用 Capacitor 或原生 iOS/Android 文件插件。iOS 通过系统文档选择器获得 iCloud 文件原地访问权限；Android 通过 Storage Access Framework 获得用户选择文件的写入权限。能写回原文件，但需维护原生工程、签名和发布流程。</li><li>服务端同步：将账本存到自建服务、WebDAV 或对象存储，手机自动上传下载。跨设备体验较好，但需维护账号、权限、服务器和数据安全。</li><li>浏览器文件权限：桌面 Chrome/Edge 的 HTTPS 页面可通过 File System Access API 写回用户授权的本地文件；iOS 浏览器不支持这一能力，仍需备份机制。</li></ol>
-<h2>4. 本地使用与源码开发</h2>
-<p>线上或部署使用时，<code>index.html</code> 是默认的产品介绍页，负责引导新建、打开或查看样式账本。账本工作台位于 <code>assetory.html</code>。</p>
-<p>只想在本地独立记账时，下载 <code>assetory.html</code> 即可。它已内联账本所需的样式、脚本和样式账本数据，可以直接双击打开，不依赖介绍页或其他文件；也可以按需要重命名。</p>
-<ul><li><a href="./index.html">打开产品介绍页</a></li><li><a href="./assetory.html">下载独立账本页</a></li><li><a href="./guide.html">阅读排版版使用说明</a></li><li><a href="./README.md">下载 README</a></li><li><a href="./assetory-demo-ledger.json">下载演示账本</a></li><li><a href="./PROJECT_CONTEXT.md">下载 Project Context</a></li></ul>
-<p>项目源码按职责放在 <code>src/</code> 中：</p>
-<pre><code>assets/images/             页面和 PWA 图标
-src/landing.template.html 产品介绍页模板
-src/landing.css          产品介绍页样式
-src/index.template.html  账本工作台模板
-src/styles.css           账本工作台样式
-src/js/core.js           公共状态、数据模型与基础计算
-src/js/storage.js        文件、加密、导入导出与账本管理
-src/js/transactions.js   流水、成本基础、对账与跨月同步
-src/js/quotes.js         股价、汇率与首月价格基线
-src/js/trends.js         盈亏归因与趋势图表
-src/js/ui.js             页面、表格和对话框渲染
-src/js/app.js            全局事件、PWA 与启动流程
-scripts/build.mjs        双 HTML 构建及一致性检查
-package.json             构建命令定义</code></pre>
-<p>修改源码后运行：</p>
-<pre><code>npm run build
+<p>Assetory 是一个本地优先的个人/家庭资产追踪工具：按月记录资产、负债和流水，查看净资产、现金流与趋势变化。账本由你自己保存为 JSON 文件，不会上传到本项目或网页服务器。</p>
+<h2>使用者：两种打开方式</h2>
+<h3>方式一：通过网页使用</h3>
+<p>访问 <a href="https://lightbluelab.github.io/assetory/">Assetory 在线版</a>。</p>
+<ol><li>首次打开可直接体验示例账本。</li><li>点击右上角“账本管理”，选择“新建”或“打开 JSON”。</li><li>日常维护资产、负债和流水；需要时添加新月份。</li><li>修改历史月份后，按页面提示同步后续月份。</li><li>定期点击“备份”下载账本 JSON。</li></ol>
+<p>在支持文件写回的桌面浏览器中，网页可在你授权后写回原文件。其他浏览器、手机和导入模式下，修改会保留在当前页面；离开前请点击“备份”下载最新 JSON。密码保护可在“账本管理”中设置，密码丢失无法恢复内容。</p>
+<h3>方式二：下载 HTML 在本地使用</h3>
+<p>下载 <a href="./assetory.html">assetory.html</a>，双击即可在浏览器中打开。它不依赖本地服务或安装步骤。</p>
+<p>首次使用时选择“新建”或“打开 JSON”。本地 HTML 无法自动加载在线示例账本，这是浏览器的本地文件限制；可从 <a href="./assetory-demo-ledger.json">assetory-demo-ledger.json</a> 下载后手动导入。编辑后同样请通过“备份”保存最新账本。</p>
+<p>常用下载：</p>
+<ul><li><a href="./index.html">产品介绍页</a></li><li><a href="./assetory.html">独立本地 HTML</a></li><li><a href="./assetory-demo-ledger.json">演示账本 JSON</a></li><li><a href="./guide.html">使用说明网页</a></li></ul>
+<h2>开发者</h2>
+<h3>下载代码到本地</h3>
+<pre><code>git clone https://github.com/lightbluelab/assetory.git
+cd assetory</code></pre>
+<p>项目不依赖第三方 npm 包；安装 Node.js 后可直接构建和检查：</p>
+<pre><code>npm test
+npm run build
 npm run check</code></pre>
-<p><code>npm run build</code> 不需要安装第三方依赖，会分别生成根目录的 <code>index.html</code>（介绍页）、<code>assetory.html</code>（独立账本工作台）和 <code>guide.html</code>（排版版使用说明）。<code>npm run check</code> 用于确认三个生成文件都与源码完全一致。开发时不要直接修改生成后的 HTML。</p>
-<h3>Git 提交范围</h3>
-<p>应提交：<code>assets/</code>、<code>src/</code>、<code>scripts/</code>、<code>index.html</code>、<code>assetory.html</code>、<code>guide.html</code>、<code>package.json</code>、<code>manifest.webmanifest</code>、<code>service-worker.js</code>、<code>README.md</code>、<code>PROJECT_CONTEXT.md</code>、<code>assetory-demo-ledger.json</code>。</p>
-<p>不要提交：个人账本（<code><em>_ledger_data.json</code>）、下载的备份（<code></em>_backup_*.json</code>）、<code>.DS_Store</code>、<code>node_modules/</code>、<code>.env</code> 或任何密码、令牌和私钥。项目已通过 <code>.gitignore</code> 忽略常见本地文件；提交前仍应检查 <code>git status</code>。</p>
-<p>将源码目录、<code>PROJECT_CONTEXT.md</code>、<code>assetory-demo-ledger.json</code> 和清晰的修改需求交给 AI Agent 即可继续定制。请明确要求 Agent 保持 JSON 兼容、不上传真实账本；涉及流水或跨月同步时，同时检查应用、回滚、同步和对账逻辑。</p></article><footer class="guide-footer">原始 Markdown 文档可在项目仓库中查看或下载。</footer></main>
+<ul><li><code>npm run build</code> 生成根目录的 <code>index.html</code>、<code>assetory.html</code> 和 <code>guide.html</code>。</li><li><code>npm run check</code> 确认生成物与源码同步。</li><li>修改功能应编辑 <code>src/</code> 和相关公开 JSON/文档，不要直接修改生成后的 HTML。</li></ul>
+<p>设计约束、数据模型、模块职责、同步规则和最低验证要求记录在 <a href="./PROJECT_CONTEXT.md">PROJECT_CONTEXT.md</a>。修改账本计算、同步或导入逻辑前，请先阅读该文件。</p>
+<h2>设计与安全</h2>
+<p>Assetory 采用本地优先设计：真实账本只存在于你的设备和你导出的文件中。公开仓库仅包含程序代码与演示账本。请自行妥善保管备份和密码。</p></article><footer class="guide-footer">原始 Markdown 文档可在项目仓库中查看或下载。</footer></main>
 </body>
 </html>

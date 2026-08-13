@@ -1,6 +1,9 @@
 // ---------- 流水 → 资产负债 联动引擎 ----------
 function flowAmount(f){ return Number(f.amount||0); }  // 保存时已算好(股票=数量×价格; 其它=直填)
 function holdingFlowAmount(f){ return Number(f.holdingAmount!=null?f.holdingAmount:f.amount||0); }
+function incomeUsesQuantity(f,target){
+  return target?.cls==="stock"&&f.incomeAssetMode==="quantity";
+}
 function applyFlowToBalance(balance,f,sign){
   const byId=id=>balance.find(row=>row.id===id);
   const requireRow=id=>{ const row=byId(id); if(!row) throw new Error("流水引用的资产不存在，请先修复或删除该流水"); return row; };
@@ -12,12 +15,12 @@ function applyFlowToBalance(balance,f,sign){
   switch(f.kind){
     case "income": {
       const target=requireRow(f.toAssetId);
-      const quantityMode=target.cls==="stock"&&(f.incomeAssetMode==="quantity"||(Number.isFinite(Number(f.qty))&&Number.isFinite(Number(f.price))));
+      const quantityMode=incomeUsesQuantity(f,target);
       if(quantityMode) addQty(f.toAssetId,q*sign); else addVal(f.toAssetId,+amt*sign);
       if(f.nonCashIncome===true) addCost(f.toAssetId,Number(f.costAddedCNY||0)*sign);
       break;
     }
-    case "dividend": addVal(f.toAssetId,+amt*sign); break;
+    case "assetIncome": addVal(f.toAssetId,+amt*sign); break;
     case "expense": addVal(f.fromAssetId,-amt*sign); break;
     case "transfer": addVal(f.fromAssetId,-amt*sign); addVal(f.toAssetId,+toAmt*sign); break;
     case "buy": addVal(f.fromAssetId,-amt*sign); addHolding(f.toAssetId,q,holdAmt,+sign); addCost(f.toAssetId,(Number(f.costAddedCNY||0)-Number(f.costReductionCNY||0))*sign); break;
@@ -33,53 +36,29 @@ function applyFlow(f,sign){ applyFlowToBalance(ledger.months[activeMonth].balanc
 function childMonthOf(fromKey){
   return monthKeys().find(k=>ledger.months[k].copiedFrom===fromKey)||null;
 }
-// 基金和固定资产的 value 同时承载交易金额与人工期末估值。
-// 同步前先从旧期初重放流水，抽取“流水无法解释的估值调整”；不能把旧期末 value
-// 直接覆盖到新期初，否则卖出流水会在重放时被重复扣减。
-function childValuationAdjustments(child,oldBal,flowAssetIds){
-  if(!Array.isArray(child.opening)||!child.opening.length) return {};
-  const oldById=new Map(oldBal.map(row=>[row.id,row]));
-  const replay=child.opening.map(open=>({...oldById.get(open.id),...open}));
-  const openingIds=new Set(replay.map(row=>row.id));
-  oldBal.filter(row=>row.openedThisMonth&&flowAssetIds.has(row.id)&&!openingIds.has(row.id)).forEach(row=>{
-    const base={...row};
-    if(base.cls==="stock") base.qty=0;
-    else base.value=0;
-    base.costBasisCNY=0;
-    replay.push(base);
-  });
-  (child.flows||[]).forEach(flow=>applyFlowToBalance(replay,flow,+1));
-  const replayById=new Map(replay.map(row=>[row.id,row]));
-  const out={};
-  oldBal.forEach(row=>{
-    if(row.cls!=="fund"&&row.cls!=="fixed") return;
-    const expected=replayById.get(row.id);
-    if(!expected) return;
-    const adjustment=Number(row.value||0)-Number(expected.value||0);
-    if(Number.isFinite(adjustment)&&Math.abs(adjustment)>0.000001) out[row.id]=adjustment;
-  });
-  return out;
-}
 // 重建 childKey 的期初(取自 parentKey 期末), 保留 child 自己的流水/价格/交易建仓资产, 再重算期末
 function rebuildChildFromParent(parentKey, childKey){
   const parent=ledger.months[parentKey], child=ledger.months[childKey];
   const oldBal=child.balance;
   // child 自己"本月交易建仓"的资产(不来自父月)仅在仍有流水引用时保留。
-  // 删除建仓流水后，遗留的 openedThisMonth 行不能再被同步时重复带入。
+  const parentIds=new Set(parent.balance.map(row=>row.id));
+  const oldById=new Map(oldBal.map(row=>[row.id,row]));
+  const explicitLocal=(child.opening||[]).filter(open=>!parentIds.has(open.id)).map(open=>({...oldById.get(open.id),...open}));
+  // 流水建仓资产不属于期初；以零持仓加入重放基线。删除建仓流水后不再保留。
   const flowAssetIds=new Set();
   (child.flows||[]).forEach(f=>{
     if(f.fromAssetId) flowAssetIds.add(f.fromAssetId);
     if(f.toAssetId) flowAssetIds.add(f.toAssetId);
   });
-  const valuationAdjustments=childValuationAdjustments(child,oldBal,flowAssetIds);
-  const ownNew=oldBal.filter(r=>r.openedThisMonth&&flowAssetIds.has(r.id)).map(r=>{
-    // 旧 balance 是本月期末；新建持仓作为期初时必须归零，再由本月流水重放。
+  const explicitIds=new Set(explicitLocal.map(row=>row.id));
+  const flowOpened=oldBal.filter(r=>r.openedThisMonth&&flowAssetIds.has(r.id)&&!explicitIds.has(r.id)).map(r=>{
     const c={...r};
     if(c.cls==="stock") c.qty=0;
     else c.value=0;
     c.costBasisCNY=0;
     return c;
   });
+  const ownNew=explicitLocal.concat(flowOpened);
   // 继承资产 = 父月期末(剔除已清仓), 深拷贝作为期初。
   // 子月自己的价格、估值和自动更新状态属于月末估值，不应被来源月同步覆盖。
   const childOverrides={}; oldBal.forEach(r=>{
@@ -101,7 +80,7 @@ function rebuildChildFromParent(parentKey, childKey){
   // 新期初 = 继承 + child自建
   const opening = inherited.concat(ownNew.map(r=>({...r})));
   // 期初快照
-  child.opening = opening.map(r=>({id:r.id,cls:r.cls,name:r.name,qty:r.qty,value:r.value,price:r.price}));
+  child.opening = opening.map(balanceSnapshotRow);
   // 期末 = 期初深拷贝, 再叠加 child 自己的流水
   const bal = opening.map(r=>({...r}));
   // 子月自己的价格属于子月期末；期初快照仍保留父月真实期末价格。
@@ -110,13 +89,8 @@ function rebuildChildFromParent(parentKey, childKey){
   (child.flows||[]).forEach(f=>{
     applyFlowToBalance(bal,f,+1);
   });
-  Object.entries(valuationAdjustments).forEach(([id,adjustment])=>{
-    const row=bal.find(item=>item.id===id);
-    if(row&&(row.cls==="fund"||row.cls==="fixed")) row.value=Number(row.value||0)+adjustment;
-  });
   child.balance=bal;
   child.fxRates=child.fxRates||{...(parent.fxRates||{CNY:1})};
-  child.sourceUpdatedAt=parent.updatedAt||new Date().toISOString();
   child.sourceRevision=Number(parent.revision||0);
   child.revision=Number(child.revision||0)+1;
   child.updatedAt=new Date().toISOString();
@@ -167,8 +141,8 @@ function reconcile(mKey){
   (m.flows||[]).forEach(f=>{
     const a=Number(f.amount||0), t=Number(f.toAmount!=null?f.toAmount:f.amount||0), h=holdingFlowAmount(f), q=Number(f.qty||0);
     switch(f.kind){
-      case "income":{ const id=f.toAssetId; if(id){ const quantityMode=rowById(id)?.cls==="stock"&&(f.incomeAssetMode==="quantity"||(Number.isFinite(Number(f.qty))&&Number.isFinite(Number(f.price)))); if(quantityMode) dQty[id]=(dQty[id]||0)+q; else dVal[id]=(dVal[id]||0)+a; } break; }
-      case "dividend":{ const id=f.toAssetId; if(id) dVal[id]=(dVal[id]||0)+a; break; }
+      case "income":{ const id=f.toAssetId; if(id){ const quantityMode=incomeUsesQuantity(f,rowById(id)); if(quantityMode) dQty[id]=(dQty[id]||0)+q; else dVal[id]=(dVal[id]||0)+a; } break; }
+      case "assetIncome":{ const id=f.toAssetId; if(id) dVal[id]=(dVal[id]||0)+a; break; }
       case "expense": { const id=f.fromAssetId; if(id) dVal[id]=(dVal[id]||0)-a; break; }
       case "transfer":{ const i1=f.fromAssetId,i2=f.toAssetId; if(i1)dVal[i1]=(dVal[i1]||0)-a; if(i2)dVal[i2]=(dVal[i2]||0)+t; break; }
       case "buy":  { const c=f.fromAssetId; if(c)dVal[c]=(dVal[c]||0)-a;
@@ -220,9 +194,7 @@ function assetOptions(side, selId){
     if(side==="liability") return r.cls==="liability";
     return false;
   });
-  const legacySelected=m.balance.find(row=>row.id===selId&&!opts.some(option=>option.id===row.id));
-  const legacy=legacySelected?`<option value="${escapeAttr(legacySelected.id)}" selected>${escapeHTML(assetLabel(legacySelected.id))} (${escapeHTML(legacySelected.currency||"CNY")}，历史引用)</option>`:"";
-  return legacy+opts.map(r=>`<option value="${escapeAttr(r.id)}" ${r.id===selId?"selected":""}>${escapeHTML(assetLabel(r.id))} (${escapeHTML(r.currency||"CNY")})</option>`).join("");
+  return opts.map(r=>`<option value="${escapeAttr(r.id)}" ${r.id===selId?"selected":""}>${escapeHTML(assetLabel(r.id))} (${escapeHTML(r.currency||"CNY")})</option>`).join("");
 }
 function openFlowDialog(id){
   const editing = id!=null;
@@ -232,7 +204,7 @@ function openFlowDialog(id){
   $("flowDlgTitle").textContent = editing?"编辑流水":"添加流水";
   $("fdKind").value=f.kind||"expense";
   $("fdDate").value=f.date||(activeMonth+"-01");
-  $("fdAmount").value=f.kind==="dividend"&&f.holdingAmount!=null?f.holdingAmount:(f.amount!=null?f.amount:"");
+  $("fdAmount").value=f.kind==="assetIncome"&&f.holdingAmount!=null?f.holdingAmount:(f.amount!=null?f.amount:"");
   $("fdQty").value=f.qty!=null?f.qty:"";
   $("fdPrice").value=f.price!=null?f.price:"";
   $("fdNote").value=f.note||"";
@@ -424,13 +396,8 @@ function buildFlowDraft(){
   if(ft.from==="free") rec.fromText=from.text; else setFlowAsset(rec,"from",from.asset);
   if(ft.to==="free") rec.toText=to.text; else setFlowAsset(rec,"to",to.asset);
   if(kind==="income"){
-    const editId=$("flowDialog").dataset.edit;
-    const original=editId?m.flows.find(flow=>flow.id===editId):null;
-    const legacyUnmarked=original&&original.kind==="income"&&original.toAssetId===to.asset?.id&&original.nonCashIncome==null&&original.incomeAssetMode==null&&original.qty==null;
-    if(!legacyUnmarked){
-      rec.nonCashIncome=to.asset?.cls!=="cash";
-      rec.incomeAssetMode=usesQtyPrice?"quantity":"value";
-    }
+    rec.nonCashIncome=to.asset?.cls!=="cash";
+    rec.incomeAssetMode=usesQtyPrice?"quantity":"value";
   }
   const holdCur=hold?.currency||null;
   const cash=ft.from==="cash"?from.asset:(ft.to==="cash"?to.asset:null);
@@ -458,11 +425,9 @@ function refreshFlowCostMetadata(month,rec,monthKey=activeMonth){
     if(hold.cls!=="stock"){ rec.costAddedCNY=flowCNY(rec,monthKey); return; }
     const position=Number(hold.qty||0), quantity=Number(rec.qty||0), trade=flowCNY(rec,monthKey);
     if(position>=0){ rec.costAddedCNY=trade; return; }
-    const cover=Math.min(quantity,-position), opened=quantity-cover;
-    const coverCost=trade*cover/quantity, reduction=Number(hold.costBasisCNY||0)*cover/(-position);
+    const reduction=Number(hold.costBasisCNY||0)*quantity/(-position);
     if(reduction) rec.costReductionCNY=reduction;
-    if(opened) rec.costAddedCNY=trade-coverCost;
-    rec.realizedPnlCNY=reduction-coverCost;
+    rec.realizedPnlCNY=reduction-trade;
   }else if(rec.kind==="sell"){
     const hold=assetByFlow(month,rec,"from");
     if(!hold) return;
@@ -474,20 +439,26 @@ function refreshFlowCostMetadata(month,rec,monthKey=activeMonth){
     }
     const position=Number(hold.qty||0), quantity=Number(rec.qty||0), trade=flowCNY(rec,monthKey);
     if(position<=0){ rec.costAddedCNY=trade; rec.realizedPnlCNY=0; return; }
-    const closed=Math.min(quantity,position), opened=quantity-closed;
-    const closedProceeds=trade*closed/quantity, reduction=Number(hold.costBasisCNY||0)*closed/position;
+    const reduction=Number(hold.costBasisCNY||0)*quantity/position;
     if(reduction) rec.costReductionCNY=reduction;
-    if(opened) rec.costAddedCNY=trade-closedProceeds;
-    rec.realizedPnlCNY=closedProceeds-reduction;
+    rec.realizedPnlCNY=trade-reduction;
   }
 }
 function validateFlowCapacity(month,rec){
   const EPS=0.000001;
-  if(rec.kind==="sell"){
+  if(rec.kind==="buy"){
+    const holding=assetByFlow(month,rec,"to");
+    if(!holding) throw new Error("买入资产不存在");
+    const position=Number(holding.qty||0), bought=Number(rec.qty||0);
+    if(holding.cls==="stock"&&position<0&&bought>-position+EPS)
+      throw new Error(`买入数量会从空头穿过零仓。请先回补 ${fmtQuantity(-position)} 股至 0，再用第二笔买入建立多头`);
+  }else if(rec.kind==="sell"){
     const holding=assetByFlow(month,rec,"from");
     if(!holding) throw new Error("卖出资产不存在");
     const available=holding.cls==="stock"?Number(holding.qty||0):Number(holding.value||0);
     const sold=holding.cls==="stock"?Number(rec.qty||0):holdingFlowAmount(rec);
+    if(holding.cls==="stock"&&available>0&&sold>available+EPS)
+      throw new Error(`卖出数量会从多头穿过零仓。请先卖出 ${fmtQuantity(available)} 股至 0，再用第二笔卖出建立空头`);
     if(holding.cls!=="stock"&&sold>available+EPS) throw new Error(`卖出金额超过当前持仓（可用 ${fmtFull(available)}）`);
   }else if(rec.kind==="repay"){
     const liability=assetByFlow(month,rec,"to");

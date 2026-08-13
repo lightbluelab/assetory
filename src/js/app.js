@@ -51,12 +51,13 @@ $("btnOpenDirect").addEventListener("click",async()=>{
   if(ledger) $("openDialog").hidden=true;
 });
 $("btnCreateOk").addEventListener("click",async()=>{
+  if(!confirmDiscardFallbackChanges("新建账本")) return;
   const name=($("newName").value||"").trim();
   const password=$("newPassword").value, confirmPassword=$("newPasswordConfirm").value;
   if(!name){ alert("请输入账本名称"); return; }
   if(password!==confirmPassword){ alert("两次输入的密码不一致"); return; }
   if(!HAS_FS){
-    ledger=newLedger(name); fileHandle=null; directoryHandle=null; demoMode=false; encryptionKey=null; encryptionMeta=null;
+    ledger=newLedger(name); fileHandle=null; directoryHandle=null; demoMode=false; fallbackDirty=false; encryptionKey=null; encryptionMeta=null;
     if(password){
       try{ const protectedData=await protectLedger(ledger,password); encryptionKey=protectedData.key; encryptionMeta=protectedData.meta; }
       catch(e){ ledger=null; alert("无法设置密码: "+e.message); return; }

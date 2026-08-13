@@ -195,7 +195,7 @@
       <label class="fld">类型
         <select id="fdKind">
           <option value="income">收入</option>
-          <option value="dividend">资产收益</option>
+          <option value="assetIncome">资产收益</option>
           <option value="expense">支出</option>
           <option value="transfer">转账</option>
           <option value="buy">买入</option>
@@ -212,7 +212,7 @@
     <label class="fld inline" id="fd-liquidate" hidden><input id="fdLiquidate" type="checkbox" /> <span id="fdLiqLabel">清仓（全部卖出当前持仓）</span></label>
     <label class="fld" id="fd-amount"><span id="fdAmountLabel">金额</span> <input id="fdAmount" type="text" inputmode="decimal" placeholder="支持 1000+200*3" /></label>
     <div class="grid2" id="fd-qp">
-      <label class="fld">数量 <span class="mut">(负数表示做空/回补)</span><input id="fdQty" type="number" step="any" /></label>
+      <label class="fld">数量 <span class="mut">(填写正数；反向建仓需拆成两笔)</span><input id="fdQty" type="number" step="any" /></label>
       <label class="fld">价格 <input id="fdPrice" type="number" step="any" /></label>
     </div>
     <label class="fld" id="fd-fx" hidden><span id="fdFxLabel">换汇汇率</span><input id="fdFxRate" type="number" step="any" /></label>
@@ -260,7 +260,6 @@
   </div>
 </div>
 
-<script id="embeddedDemoData" type="application/json">/*__INLINE_DEMO__*/</script>
 <script>
 /*__INLINE_JS__*/
 </script>

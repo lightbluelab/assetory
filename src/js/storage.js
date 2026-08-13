@@ -17,21 +17,8 @@ async function idbDel(key){ const db=await idbOpen(); return new Promise((res,re
   const tx=db.transaction(IDB_STORE,"readwrite"); tx.objectStore(IDB_STORE).delete(key);
   tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
 const LS_ACTIVE = "assetory.active";
-const LEGACY_LS_ACTIVE = "familyLedger.active";
-function activeLedgerName(){
-  const active=localStorage.getItem(LS_ACTIVE);
-  if(active) return active;
-  const legacy=localStorage.getItem(LEGACY_LS_ACTIVE);
-  if(legacy) localStorage.setItem(LS_ACTIVE,legacy);
-  return legacy;
-}
-async function restoreStoredHandles(){
-  const current=await idbGetAll();
-  const legacy=await idbGetAll(LEGACY_IDB_DB);
-  const missing=Object.entries(legacy).filter(([key])=>!Object.hasOwn(current,key));
-  await Promise.all(missing.map(([key,value])=>idbSet(key,value)));
-  return {...legacy,...current};
-}
+function activeLedgerName(){ return localStorage.getItem(LS_ACTIVE); }
+async function restoreStoredHandles(){ return idbGetAll(); }
 
 
 function b64(bytes){
@@ -49,13 +36,13 @@ async function protectLedger(data,password){
   const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
   const key=await deriveEncryptionKey(password,salt);
   const ciphertext=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(JSON.stringify(data)));
-  return {schema:"nimble-ledger-encrypted-v1",encryption:{kdf:"PBKDF2-SHA-256",iterations:210000,salt:b64(salt)},iv:b64(iv),ciphertext:b64(ciphertext),key,meta:{salt:b64(salt)}};
+  return {schema:"assetory-encrypted-v1",encryption:{kdf:"PBKDF2-SHA-256",iterations:210000,salt:b64(salt)},iv:b64(iv),ciphertext:b64(ciphertext),key,meta:{salt:b64(salt)}};
 }
 async function serializeLedger(){
   if(!encryptionKey) return ledger;
   const iv=crypto.getRandomValues(new Uint8Array(12));
   const ciphertext=await crypto.subtle.encrypt({name:"AES-GCM",iv},encryptionKey,new TextEncoder().encode(JSON.stringify(ledger)));
-  return {schema:"nimble-ledger-encrypted-v1",encryption:{kdf:"PBKDF2-SHA-256",iterations:210000,salt:encryptionMeta.salt},iv:b64(iv),ciphertext:b64(ciphertext)};
+  return {schema:"assetory-encrypted-v1",encryption:{kdf:"PBKDF2-SHA-256",iterations:210000,salt:encryptionMeta.salt},iv:b64(iv),ciphertext:b64(ciphertext)};
 }
 async function unlockLedger(wrapper,password){
   try{
@@ -67,6 +54,25 @@ async function unlockLedger(wrapper,password){
 
 
 // ---------- 存储层 (严格文件绑定) ----------
+function hasUnsavedFallbackChanges(){ return Boolean(ledger&&!demoMode&&!fileHandle&&fallbackDirty); }
+function confirmDiscardFallbackChanges(action="继续"){
+  if(!hasUnsavedFallbackChanges()) return true;
+  return confirm(`当前账本有尚未下载备份的修改。\n${action}会丢失这些修改，是否放弃并继续？`);
+}
+let fallbackNavigationApproved=false;
+window.addEventListener("beforeunload",event=>{
+  if(fallbackNavigationApproved||!hasUnsavedFallbackChanges()) return;
+  event.preventDefault();
+  event.returnValue="";
+});
+document.addEventListener("click",event=>{
+  const link=event.target.closest("a[href]");
+  if(!link||!hasUnsavedFallbackChanges()) return;
+  const url=new URL(link.href,location.href);
+  if(url.href===location.href||!/^https?:$/.test(url.protocol)&&url.protocol!=="file:") return;
+  if(!confirmDiscardFallbackChanges("离开当前页面")) event.preventDefault();
+  else fallbackNavigationApproved=true;
+});
 async function persist(touchActiveMonth=true){
   if(!ledger) return;
   if(demoMode){
@@ -74,7 +80,12 @@ async function persist(touchActiveMonth=true){
     renderStorageInfo();
     return;
   }
-  if(!fileHandle){ setStatus("⚠️ 未绑定文件，无法保存"); return; }
+  if(!fileHandle){
+    fallbackDirty=true;
+    setStatus("⚠️ 修改仅保留在当前页面内存中，请点击「备份」下载后再离开");
+    renderStorageInfo();
+    return;
+  }
   try{
     const w = await fileHandle.createWritable();
     await w.write(JSON.stringify(await serializeLedger(),null,2));
@@ -98,19 +109,18 @@ async function verifyPermission(handle, write){
   return false;
 }
 async function useHandle(handle, {isNew, directory}={}){
-  let nextLedger=ledger, nextEncryptionKey=encryptionKey, nextEncryptionMeta=encryptionMeta, needsMigrationSave=false;
+  let nextLedger=ledger, nextEncryptionKey=encryptionKey, nextEncryptionMeta=encryptionMeta;
   if(!isNew){
     const file=await handle.getFile();
     let obj=JSON.parse(await file.text());
     nextEncryptionKey=null; nextEncryptionMeta=null;
-    if(obj.schema==="nimble-ledger-encrypted-v1"){
+    if(obj.schema==="assetory-encrypted-v1"){
       const password=await requestPassword({title:`打开加密账本：${file.name}`,hint:"请输入此账本的密码以解锁本地 JSON"});
       if(password==null){ const e=new Error("已取消输入密码"); e.name="AbortError"; throw e; }
       const unlocked=await unlockLedger(obj,password);
       obj=unlocked.data; nextEncryptionKey=unlocked.key; nextEncryptionMeta=unlocked.meta;
     }
-    needsMigrationSave=Boolean(obj.recurringFlows)||Object.values(obj.months||{}).some(month=>(month.flows||[]).some(flow=>Object.hasOwn(flow,"recurringId")));
-    nextLedger=migrateLedger(obj);
+    nextLedger=loadLedger(obj);
   }
   // 文件解析、密码验证和结构迁移全部成功后，才切换当前运行状态。
   ledger=nextLedger;
@@ -119,17 +129,19 @@ async function useHandle(handle, {isNew, directory}={}){
   fileHandle=handle;
   directoryHandle=directory||null;
   demoMode=false;
+  fallbackDirty=false;
   activeMonth=null; balanceEditMode=false; flowEditMode=false;
   registry[ledger.name]=handle;
   await idbSet(ledger.name, handle);      // 句柄持久化,便于刷新后重开
   if(directoryHandle) await idbSet(`dir:${ledger.name}`,directoryHandle);
   localStorage.setItem(LS_ACTIVE, ledger.name);
-  if(isNew||needsMigrationSave) await persist();
+  if(isNew) await persist();
   renderAll();
 }
 
 async function openFromFile(){
-  if(!HAS_FS){ $("fallbackJsonInput").click(); return; }
+  if(!HAS_FS){ $("fallbackJsonInput").click(); return false; }
+  if(!confirmDiscardFallbackChanges("打开其他账本")) return false;
   try{
     const opts={
       id:"assetory-open",
@@ -145,18 +157,19 @@ async function openFromFile(){
 }
 
 async function importFallbackFile(file){
+  if(!confirmDiscardFallbackChanges("导入其他账本")) return false;
   try{
     let obj=JSON.parse(await file.text());
     let nextEncryptionKey=null, nextEncryptionMeta=null;
-    if(obj.schema==="nimble-ledger-encrypted-v1"){
+    if(obj.schema==="assetory-encrypted-v1"){
       const password=await requestPassword({title:`打开加密账本：${file.name}`,hint:"请输入此账本的密码以解锁本地 JSON"});
       if(password==null) return;
       const unlocked=await unlockLedger(obj,password);
       obj=unlocked.data; nextEncryptionKey=unlocked.key; nextEncryptionMeta=unlocked.meta;
     }
-    const nextLedger=migrateLedger(obj);
+    const nextLedger=loadLedger(obj);
     ledger=nextLedger; encryptionKey=nextEncryptionKey; encryptionMeta=nextEncryptionMeta;
-    fileHandle=null; directoryHandle=null; demoMode=false; activeMonth=null; balanceEditMode=false; flowEditMode=false;
+    fileHandle=null; directoryHandle=null; demoMode=false; fallbackDirty=false; activeMonth=null; balanceEditMode=false; flowEditMode=false;
     renderAll();
     $("openDialog").hidden=true;
     setStatus(`已导入 ${file.name}；请使用「备份」下载编辑后的 JSON`);
@@ -165,17 +178,12 @@ async function importFallbackFile(file){
 
 async function loadDemoLedger(){
   try{
-    let obj;
-    const embedded=$("embeddedDemoData")?.textContent?.trim();
-    if(embedded){
-      obj=JSON.parse(embedded);
-    }else {
-      const res=await fetch(new URL("./assetory-demo-ledger.json",location.href),{cache:"no-store"});
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      obj=await res.json();
-    }
-    ledger=migrateLedger(obj); fileHandle=null; directoryHandle=null; encryptionKey=null; encryptionMeta=null;
-    demoMode=true; activeMonth=Object.keys(obj.months).sort().at(-1)||null; balanceEditMode=false; flowEditMode=false;
+    // 示例账本始终作为独立 JSON 资源加载，不内嵌进 HTML 构建产物。
+    const res=await fetch(new URL("./assetory-demo-ledger.json",location.href),{cache:"no-store"});
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const obj=await res.json();
+    ledger=loadLedger(obj); fileHandle=null; directoryHandle=null; encryptionKey=null; encryptionMeta=null;
+    demoMode=true; fallbackDirty=false; activeMonth=Object.keys(obj.months).sort().at(-1)||null; balanceEditMode=false; flowEditMode=false;
     renderAll();
     setStatus("正在体验示例账本；编辑后请下载示例副本或新建自己的账本");
     return true;
@@ -188,6 +196,7 @@ async function loadDemoLedger(){
 // ---------- 账本管理 ----------
 async function switchLedger(name){
   if(!name || name===ledger?.name) return;
+  if(!confirmDiscardFallbackChanges("切换账本")) return;
   const h=registry[name];
   if(!h){ alert("找不到该账本的文件句柄，请重新打开 JSON 文件"); renderLedgerManager(); return; }
   try{
@@ -205,6 +214,7 @@ function openCreateDialog(){
 }
 async function removeLedgerRecord(name){
   if(!registry[name]) return;
+  if(ledger?.name===name&&!confirmDiscardFallbackChanges("关闭当前账本")) return;
   if(!confirm(`删除账本「${name}」的本机记录？\n不会删除磁盘上的 JSON 文件。`)) return;
   const isCurrent=ledger?.name===name;
   delete registry[name]; await idbDel(name);
@@ -285,6 +295,7 @@ async function backupCurrentLedger(filename){
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
     a.download=typeof filename==="string"&&filename?filename:`${ledger.name}_backup_${stamp}.json`; a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),0);
+    if(!fileHandle&&!demoMode) fallbackDirty=false;
     setStatus("已下载备份: "+a.download);
     return true;
   }catch(error){

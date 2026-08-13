@@ -50,10 +50,9 @@ const renderGuide = markdown => {
   return output.join("\n");
 };
 
-const [trackerTemplate, trackerStyles, demoLedger, landingTemplate, landingStyles, guideTemplate, readme, ...modules] = await Promise.all([
+const [trackerTemplate, trackerStyles, landingTemplate, landingStyles, guideTemplate, readme, ...modules] = await Promise.all([
   read("src/index.template.html"),
   read("src/styles.css"),
-  read("assetory-demo-ledger.json"),
   read("src/landing.template.html"),
   read("src/landing.css"),
   read("src/guide.template.html"),
@@ -71,7 +70,6 @@ new Function(script);
 
 let trackerOutput = replaceOnce(trackerTemplate, "/*__INLINE_CSS__*/", trackerStyles.trim());
 trackerOutput = replaceOnce(trackerOutput, "/*__INLINE_JS__*/", script);
-trackerOutput = replaceOnce(trackerOutput, "/*__INLINE_DEMO__*/", demoLedger.trim());
 trackerOutput = trackerOutput.replace(/\n*$/, "\n");
 let landingOutput = replaceOnce(landingTemplate, "/*__INLINE_LANDING_CSS__*/", landingStyles.trim());
 landingOutput = landingOutput.replace(/\n*$/, "\n");
